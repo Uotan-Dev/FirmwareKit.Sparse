@@ -49,6 +49,46 @@ internal static class CompatibilityExtensions
 #endif
     }
 
+    public static int Read(this Stream stream, Span<byte> buffer)
+    {
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER || NET5_0_OR_GREATER
+        return stream.Read(buffer);
+#else
+        var pool = System.Buffers.ArrayPool<byte>.Shared.Rent(buffer.Length);
+        try
+        {
+            var read = stream.Read(pool, 0, buffer.Length);
+            if (read > 0)
+            {
+                new ReadOnlySpan<byte>(pool, 0, read).CopyTo(buffer);
+            }
+            return read;
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(pool);
+        }
+#endif
+    }
+
+    public static void Write(this Stream stream, ReadOnlySpan<byte> buffer)
+    {
+#if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_1_OR_GREATER || NET5_0_OR_GREATER
+        stream.Write(buffer);
+#else
+        var pool = System.Buffers.ArrayPool<byte>.Shared.Rent(buffer.Length);
+        try
+        {
+            buffer.CopyTo(pool);
+            stream.Write(pool, 0, buffer.Length);
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(pool);
+        }
+#endif
+    }
+
     public static long Clamp(long value, long min, long max)
     {
 #if NETSTANDARD2_1_OR_GREATER || NETCOREAPP2_0_OR_GREATER || NET5_0_OR_GREATER

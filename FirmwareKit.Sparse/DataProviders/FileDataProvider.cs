@@ -1,7 +1,18 @@
 ﻿namespace FirmwareKit.Sparse.DataProviders;
 
-public class FileDataProvider(string filePath, long offset, long length) : ISparseDataProvider
+public class FileDataProvider : ISparseDataProvider
 {
+    private readonly string filePath;
+    private readonly long offset;
+    private readonly long length;
+
+    public FileDataProvider(string filePath, long offset, long length)
+    {
+        this.filePath = filePath;
+        this.offset = offset;
+        this.length = length;
+    }
+
     public long Length => length;
 
     public void WriteTo(Stream stream)

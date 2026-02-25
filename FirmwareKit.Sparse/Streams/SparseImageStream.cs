@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace FirmwareKit.Sparse.Streams;
 
 /// <summary>
@@ -8,8 +6,8 @@ namespace FirmwareKit.Sparse.Streams;
 public class SparseImageStream : Stream
 {
     private readonly uint _blockSize;
-    private readonly List<SparseChunk> _mappedChunks = [];
-    private readonly List<Section> _sections = [];
+    private readonly List<SparseChunk> _mappedChunks = new List<SparseChunk>();
+    private readonly List<Section> _sections = new List<Section>();
     private readonly long _totalByteLength;
     private readonly SparseFile? _ownedFile;
     private long _position;
@@ -379,11 +377,24 @@ public class SparseImageStream : Stream
         base.Dispose(disposing);
     }
 
-    private class SubDataProvider(ISparseDataProvider parent, long offset, long length) : ISparseDataProvider
+    private class SubDataProvider : ISparseDataProvider
     {
+        private readonly ISparseDataProvider parent;
+        private readonly long offset;
+        private readonly long length;
+
+        public SubDataProvider(ISparseDataProvider parent, long offset, long length)
+        {
+            this.parent = parent;
+            this.offset = offset;
+            this.length = length;
+        }
+
         public long Length => length;
         public int Read(long inOffset, byte[] buffer, int bufferOffset, int count) =>
             parent.Read(offset + inOffset, buffer, bufferOffset, (int)Math.Min(count, length - inOffset));
+        public int Read(long inOffset, Span<byte> buffer) =>
+            parent.Read(offset + inOffset, buffer.Slice(0, (int)Math.Min(buffer.Length, length - inOffset)));
         public void WriteTo(Stream stream) => throw new NotSupportedException();
         public void Dispose() { }
         public ISparseDataProvider GetSubProvider(long subOffset, long subLength) =>

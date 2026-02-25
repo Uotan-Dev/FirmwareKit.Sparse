@@ -1,9 +1,17 @@
 ﻿namespace FirmwareKit.Sparse.DataProviders;
 
-public class MemoryDataProvider(byte[] data, int offset = 0, int length = -1) : ISparseDataProvider
+public class MemoryDataProvider : ISparseDataProvider
 {
-    private readonly int _offset = offset;
-    private readonly int _length = length < 0 ? data.Length - offset : length;
+    private readonly byte[] data;
+    private readonly int _offset;
+    private readonly int _length;
+
+    public MemoryDataProvider(byte[] data, int offset = 0, int length = -1)
+    {
+        this.data = data;
+        _offset = offset;
+        _length = length < 0 ? data.Length - offset : length;
+    }
 
     public long Length => _length;
 

@@ -1,7 +1,20 @@
 ﻿namespace FirmwareKit.Sparse.DataProviders;
 
-public class StreamDataProvider(Stream stream, long offset, long length, bool leaveOpen = true) : ISparseDataProvider
+public class StreamDataProvider : ISparseDataProvider
 {
+    private readonly Stream stream;
+    private readonly long offset;
+    private readonly long length;
+    private readonly bool leaveOpen;
+
+    public StreamDataProvider(Stream stream, long offset, long length, bool leaveOpen = true)
+    {
+        this.stream = stream;
+        this.offset = offset;
+        this.length = length;
+        this.leaveOpen = leaveOpen;
+    }
+
     public long Length => length;
 
     public void WriteTo(Stream outStream)

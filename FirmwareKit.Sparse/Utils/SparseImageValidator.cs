@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace FirmwareKit.Sparse.Utils;
 
 /// <summary>

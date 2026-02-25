@@ -1,10 +1,8 @@
-using System.Buffers.Binary;
-
 namespace FirmwareKit.Sparse.Core;
 
 public class SparseFile : IDisposable
 {
-    private readonly List<SparseChunk> _chunks = [];
+    private readonly List<SparseChunk> _chunks = new List<SparseChunk>();
 
     public static SparseHeader PeekHeader(string filePath)
     {
@@ -1102,10 +1100,16 @@ public class SparseFile : IDisposable
         };
     }
 
-    private sealed class ResparseEntry(uint startBlock, SparseChunk chunk)
+    private sealed class ResparseEntry
     {
-        public uint StartBlock { get; } = startBlock;
-        public SparseChunk Chunk { get; } = chunk;
+        public ResparseEntry(uint startBlock, SparseChunk chunk)
+        {
+            StartBlock = startBlock;
+            Chunk = chunk;
+        }
+
+        public uint StartBlock { get; }
+        public SparseChunk Chunk { get; }
     }
 
     private List<ResparseEntry> BuildResparseEntries()

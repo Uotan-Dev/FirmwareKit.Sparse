@@ -1,6 +1,4 @@
-﻿using System.Buffers.Binary;
-
-namespace FirmwareKit.Sparse.Models;
+﻿namespace FirmwareKit.Sparse.Models;
 
 public enum ChunkType : ushort
 {
@@ -127,9 +125,9 @@ public readonly struct ChunkHeader
 
     public bool IsValid()
     {
-        return ChunkType is (ushort)FirmwareKit.Sparse.ChunkType.Raw or
-               (ushort)FirmwareKit.Sparse.ChunkType.Fill or
-               (ushort)FirmwareKit.Sparse.ChunkType.DontCare or
-               (ushort)FirmwareKit.Sparse.ChunkType.Crc32;
+        return ChunkType is (ushort)Models.ChunkType.Raw or
+               (ushort)Models.ChunkType.Fill or
+               (ushort)Models.ChunkType.DontCare or
+               (ushort)Models.ChunkType.Crc32;
     }
 }

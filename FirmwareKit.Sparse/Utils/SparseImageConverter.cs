@@ -1,4 +1,4 @@
-﻿using FirmwareKit.Lp;
+﻿// using FirmwareKit.Lp;
 
 namespace FirmwareKit.Sparse.Utils;
 
@@ -39,6 +39,7 @@ public static class SparseImageConverter
         sparseFile.WriteToStream(outputStream);
     }
 
+    /*
     /// <summary>
     /// Creates a new Super image and saves it in Sparse format
     /// </summary>
@@ -138,6 +139,7 @@ public static class SparseImageConverter
             }
         }
     }
+    */
 
     private static void CopyStreamPart(Stream input, Stream output, long length)
     {

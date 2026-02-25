@@ -1,5 +1,3 @@
-using System.Buffers.Binary;
-
 namespace FirmwareKit.Sparse.Streams;
 /// <summary>
 /// Wraps a SparseFile as a read-only Stream allowing random access
