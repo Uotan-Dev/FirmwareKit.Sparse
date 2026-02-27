@@ -1,7 +1,7 @@
 namespace FirmwareKit.Sparse.Streams;
 
 /// <summary>
-/// Map chunks to a complete sparse image stream.
+/// A stream that maps sparse chunks back into a complete sparse image format.
 /// </summary>
 public class SparseImageStream : Stream
 {
@@ -31,14 +31,14 @@ public class SparseImageStream : Stream
     }
 
     /// <summary>
-    /// Initializes a new instance of the SparseImageStream class.
+    /// Initializes a new instance of the <see cref="SparseImageStream"/> class.
     /// </summary>
-    /// <param name="source">The source SparseFile.</param>
-    /// <param name="startBlock">The starting block offset (absolute position).</param>
-    /// <param name="blockCount">The number of valid data blocks included in this stream.</param>
-    /// <param name="includeCrc">Whether to include a CRC32 checksum chunk at the end.</param>
-    /// <param name="fullRange">Whether to declare full TotalBlocks in the header and use 'skip' chunks for padding at the beginning/end (used for Resparse).</param>
-    /// <param name="disposeSource">Whether to dispose the source SparseFile when this stream is disposed.</param>
+    /// <param name="source">The source sparse file.</param>
+    /// <param name="startBlock">The absolute starting block offset.</param>
+    /// <param name="blockCount">The number of blocks in the stream.</param>
+    /// <param name="includeCrc">Whether to append a CRC32 checksum chunk.</param>
+    /// <param name="fullRange">Whether to maintain the original file's TotalBlocks and pad with "skip" chunks.</param>
+    /// <param name="disposeSource">Whether to dispose the source file when this stream is disposed.</param>
     public SparseImageStream(SparseFile source, uint startBlock, uint blockCount, bool includeCrc = false, bool fullRange = true, bool disposeSource = false)
     {
         _blockSize = source.Header.BlockSize;
@@ -144,67 +144,47 @@ public class SparseImageStream : Stream
     private uint CalculateChecksum()
     {
         var checksum = Crc32.Begin();
-        var buffer = new byte[1024 * 1024];
+        var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(1024 * 1024);
 
-        foreach (var chunk in _mappedChunks)
+        try
         {
-            var totalBytes = (long)chunk.Header.ChunkSize * _blockSize;
-            switch (chunk.Header.ChunkType)
+            foreach (var chunk in _mappedChunks)
             {
-                case (ushort)ChunkType.Raw:
-                    if (chunk.DataProvider != null)
-                    {
-                        long offset = 0;
-                        while (offset < totalBytes)
+                var totalBytes = (long)chunk.Header.ChunkSize * _blockSize;
+                switch (chunk.Header.ChunkType)
+                {
+                    case (ushort)ChunkType.Raw:
+                        if (chunk.DataProvider != null)
                         {
-                            var toProcess = (int)Math.Min(buffer.Length, totalBytes - offset);
-                            var read = chunk.DataProvider.Read(offset, buffer, 0, toProcess);
-                            if (read <= 0) break;
-                            checksum = Crc32.Update(checksum, buffer, 0, read);
-                            offset += read;
+                            long offset = 0;
+                            while (offset < totalBytes)
+                            {
+                                var toProcess = (int)Math.Min(buffer.Length, totalBytes - offset);
+                                var read = chunk.DataProvider.Read(offset, buffer, 0, toProcess);
+                                if (read <= 0) break;
+                                checksum = Crc32.Update(checksum, buffer, 0, read);
+                                offset += read;
+                            }
                         }
-                    }
-                    else
-                    {
-                        var zeroBuf = new byte[Math.Min(buffer.Length, totalBytes)];
-                        long processed = 0;
-                        while (processed < totalBytes)
+                        else
                         {
-                            var toProcess = (int)Math.Min(zeroBuf.Length, totalBytes - processed);
-                            checksum = Crc32.Update(checksum, zeroBuf, 0, toProcess);
-                            processed += toProcess;
+                            checksum = Crc32.UpdateZero(checksum, totalBytes);
                         }
-                    }
-                    break;
+                        break;
 
-                case (ushort)ChunkType.Fill:
-                    var fillValData = new byte[4];
-                    BinaryPrimitives.WriteUInt32LittleEndian(fillValData, chunk.FillValue);
-                    for (var i = 0; i <= buffer.Length - 4; i += 4)
-                    {
-                        Array.Copy(fillValData, 0, buffer, i, 4);
-                    }
+                    case (ushort)ChunkType.Fill:
+                        checksum = Crc32.UpdateRepeated(checksum, chunk.FillValue, totalBytes);
+                        break;
 
-                    long processedFill = 0;
-                    while (processedFill < totalBytes)
-                    {
-                        var toProcess = (int)Math.Min(buffer.Length, totalBytes - processedFill);
-                        checksum = Crc32.Update(checksum, buffer, 0, toProcess);
-                        processedFill += toProcess;
-                    }
-                    break;
-
-                case (ushort)ChunkType.DontCare:
-                    Array.Clear(buffer, 0, buffer.Length);
-                    long processedZero = 0;
-                    while (processedZero < totalBytes)
-                    {
-                        var toProcess = (int)Math.Min(buffer.Length, totalBytes - processedZero);
-                        checksum = Crc32.Update(checksum, buffer, 0, toProcess);
-                        processedZero += toProcess;
-                    }
-                    break;
+                    case (ushort)ChunkType.DontCare:
+                        checksum = Crc32.UpdateZero(checksum, totalBytes);
+                        break;
+                }
             }
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
         }
 
         return Crc32.Finish(checksum);
@@ -274,12 +254,13 @@ public class SparseImageStream : Stream
         return newChunk;
     }
 
+    /// <inheritdoc/>
     public override int Read(byte[] buffer, int offset, int count)
     {
         if (_position >= _totalByteLength) return 0;
 
         var totalRead = 0;
-        while (totalRead< count && _position < _totalByteLength)
+        while (totalRead < count && _position < _totalByteLength)
         {
             var section = FindSectionAtOffset(_position);
             var offsetInSection = _position - section.StartByteOffset;
@@ -347,6 +328,7 @@ public class SparseImageStream : Stream
         return _sections.Last();
     }
 
+    /// <inheritdoc/>
     public override long Seek(long offset, SeekOrigin origin)
     {
         switch (origin)
@@ -359,15 +341,31 @@ public class SparseImageStream : Stream
         return _position;
     }
 
+    /// <inheritdoc/>
     public override bool CanRead => true;
+    /// <inheritdoc/>
     public override bool CanSeek => true;
+    /// <inheritdoc/>
     public override bool CanWrite => false;
+    /// <inheritdoc/>
     public override long Length => _totalByteLength;
+    /// <inheritdoc/>
     public override long Position { get => _position; set => Seek(value, SeekOrigin.Begin); }
+    /// <inheritdoc/>
     public override void Flush() { }
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    /// <inheritdoc/>
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
 
+    /// <inheritdoc/>
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
+
+    /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -391,13 +389,25 @@ public class SparseImageStream : Stream
         }
 
         public long Length => length;
-        public int Read(long inOffset, byte[] buffer, int bufferOffset, int count) =>
-            parent.Read(offset + inOffset, buffer, bufferOffset, (int)Math.Min(count, length - inOffset));
-        public int Read(long inOffset, Span<byte> buffer) =>
-            parent.Read(offset + inOffset, buffer.Slice(0, (int)Math.Min(buffer.Length, length - inOffset)));
-        public void WriteTo(Stream stream) => throw new NotSupportedException();
+        public int Read(long inOffset, byte[] buffer, int bufferOffset, int count)
+        {
+            return parent.Read(offset + inOffset, buffer, bufferOffset, (int)Math.Min(count, length - inOffset));
+        }
+
+        public int Read(long inOffset, Span<byte> buffer)
+        {
+            return parent.Read(offset + inOffset, buffer.Slice(0, (int)Math.Min(buffer.Length, length - inOffset)));
+        }
+
+        public void WriteTo(Stream stream)
+        {
+            throw new NotSupportedException();
+        }
+
         public void Dispose() { }
-        public ISparseDataProvider GetSubProvider(long subOffset, long subLength) =>
-            new SubDataProvider(parent, offset + subOffset, subLength);
+        public ISparseDataProvider GetSubProvider(long subOffset, long subLength)
+        {
+            return new SubDataProvider(parent, offset + subOffset, subLength);
+        }
     }
 }

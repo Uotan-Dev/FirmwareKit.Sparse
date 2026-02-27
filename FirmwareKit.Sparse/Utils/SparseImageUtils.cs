@@ -1,18 +1,24 @@
 namespace FirmwareKit.Sparse.Utils;
 
 /// <summary>
-/// Sparse image utility tools
+/// Sparse image utility tools.
 /// </summary>
 public static class SparseImageUtils
 {
     /// <summary>
-    /// Gets detailed information about a file
+    /// Gets detailed information about a file.
     /// </summary>
+    /// <param name="filePath">The file path.</param>
+    /// <returns>A <see cref="FileInfoResult"/> containing file details.</returns>
     public static FileInfoResult GetFileInfo(string filePath)
     {
         if (!File.Exists(filePath))
         {
-            throw new FileNotFoundException($"File not found: {filePath}");
+            return new FileInfoResult
+            {
+                Success = false,
+                ErrorMessage = $"File not found: {filePath}"
+            };
         }
 
         var fileInfo = new FileInfo(filePath);
@@ -44,18 +50,29 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Compares size and type of two files
+    /// Compares the size and type of two files.
     /// </summary>
+    /// <param name="file1">The path to the first file.</param>
+    /// <param name="file2">The path to the second file.</param>
+    /// <returns>A <see cref="FileComparisonResult"/> containing the comparison results.</returns>
     public static FileComparisonResult CompareFiles(string file1, string file2)
     {
         if (!File.Exists(file1))
         {
-            throw new FileNotFoundException($"File not found: {file1}");
+            return new FileComparisonResult
+            {
+                Success = false,
+                ErrorMessage = $"File not found: {file1}"
+            };
         }
 
         if (!File.Exists(file2))
         {
-            throw new FileNotFoundException($"File not found: {file2}");
+            return new FileComparisonResult
+            {
+                Success = false,
+                ErrorMessage = $"File not found: {file2}"
+            };
         }
 
         var info1 = new FileInfo(file1);
@@ -87,8 +104,11 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Verifies the consistency of the conversion result
+    /// Verifies the consistency of files before and after conversion.
     /// </summary>
+    /// <param name="originalFile">The path to the original file.</param>
+    /// <param name="convertedFile">The path to the converted file.</param>
+    /// <returns>A <see cref="ConversionVerificationResult"/> containing the verification results.</returns>
     public static ConversionVerificationResult VerifyConversion(string originalFile, string convertedFile)
     {
         try
@@ -115,8 +135,12 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Creates a test sparse image
+    /// Creates a test sparse image.
     /// </summary>
+    /// <param name="outputPath">The output path.</param>
+    /// <param name="sizeInMB">The size in megabytes (MB).</param>
+    /// <param name="blockSize">The block size.</param>
+    /// <returns>A <see cref="TestImageCreationResult"/> containing the result of the test image creation.</returns>
     public static TestImageCreationResult CreateTestSparseImage(string outputPath, uint sizeInMB = 100, uint blockSize = 4096)
     {
         try
@@ -154,8 +178,12 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Extracts valid data from a sparse image
+    /// Extracts valid data from a sparse image.
     /// </summary>
+    /// <param name="inputPath">The input path.</param>
+    /// <param name="outputPath">The output path.</param>
+    /// <param name="partitionOffset">The partition offset.</param>
+    /// <returns>A <see cref="DataExtractionResult"/> containing the result of the data extraction.</returns>
     public static DataExtractionResult ExtractValidData(string inputPath, string outputPath, long partitionOffset)
     {
         try
@@ -322,8 +350,13 @@ public static class SparseImageUtils
 
     /// <summary>
     /// Extracts valid data and generates a corresponding CSV map.
-    /// CSV Format: [Index], File Offset (bytes), File Length (bytes), Device Offset (bytes), Device Length (bytes)
+    /// CSV format: [Index], File Offset (bytes), File Length (bytes), Device Offset (bytes), Device Length (bytes)
     /// </summary>
+    /// <param name="sparseImagePath">The path to the sparse image.</param>
+    /// <param name="binOutputPath">The binary output path.</param>
+    /// <param name="csvOutputPath">The CSV output path.</param>
+    /// <param name="partitionOffset">The partition offset.</param>
+    /// <returns>A <see cref="DataExtractionWithCsvResult"/> containing the result of the data extraction with CSV output.</returns>
     public static DataExtractionWithCsvResult ExtractValidDataWithCsv(string sparseImagePath, string binOutputPath, string csvOutputPath, long partitionOffset)
     {
         try
@@ -429,7 +462,7 @@ public static class SparseImageUtils
                                 var fillFileOffset = fileOffset;
                                 WriteFillData(outputStream, fillBytes, fillDataLength);
                                 fileOffset += fillDataLength;
-                                var fillDeviceOffset = Math.Max(partitionOffset, chunkStartBlock * blockSize);
+                                var fillDeviceOffset = Math.Max(partitionOffset, (long)chunkStartBlock * blockSize);
                                 csvRecords.Add($"{sequenceNumber},{fillFileOffset},{fillDataLength},{fillDeviceOffset},{fillDataLength}");
                                 sequenceNumber++;
                                 foundValidData = true;

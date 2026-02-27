@@ -1,6 +1,6 @@
 namespace FirmwareKit.Sparse.Streams;
 /// <summary>
-/// Wraps a SparseFile as a read-only Stream allowing random access
+/// A read-only <see cref="Stream"/> that wraps a <see cref="SparseFile"/> to allow random access to its uncompressed data.
 /// </summary>
 public class SparseStream : Stream
 {
@@ -9,6 +9,10 @@ public class SparseStream : Stream
     private long _position;
     private readonly (uint StartBlock, uint EndBlock, int ChunkIndex)[] _chunkLookup;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SparseStream"/> class.
+    /// </summary>
+    /// <param name="sparseFile">The sparse file instance.</param>
     public SparseStream(SparseFile sparseFile)
     {
         _sparseFile = sparseFile;
@@ -24,19 +28,26 @@ public class SparseStream : Stream
         }
     }
 
+    /// <inheritdoc/>
     public override bool CanRead => true;
+    /// <inheritdoc/>
     public override bool CanSeek => true;
+    /// <inheritdoc/>
     public override bool CanWrite => false;
+    /// <inheritdoc/>
     public override long Length => _length;
 
+    /// <inheritdoc/>
     public override long Position
     {
         get => _position;
         set => _position = value < 0 ? 0 : (value > _length ? _length : value);
     }
 
+    /// <inheritdoc/>
     public override void Flush() { }
 
+    /// <inheritdoc/>
     public override int Read(byte[] buffer, int offset, int count)
     {
         if (_position >= _length)
@@ -129,9 +140,24 @@ public class SparseStream : Stream
                 break;
             case (ushort)ChunkType.Fill:
                 BinaryPrimitives.WriteUInt32LittleEndian(fillValue, chunk.FillValue);
-                for (var i = 0; i < count; i++)
+                var destSpan = buffer.AsSpan(bufferOffset, count);
+                var firstFillSize = (int)(4 - (offsetInChunk % 4));
+                if (firstFillSize > 0 && firstFillSize < 4)
                 {
-                    buffer[bufferOffset + i] = fillValue[(int)((offsetInChunk + i) % 4)];
+                    var toCopy = Math.Min(firstFillSize, count);
+                    fillValue.Slice((int)(offsetInChunk % 4), toCopy).CopyTo(destSpan);
+                    destSpan = destSpan.Slice(toCopy);
+                }
+
+                while (destSpan.Length >= 4)
+                {
+                    BinaryPrimitives.WriteUInt32LittleEndian(destSpan, chunk.FillValue);
+                    destSpan = destSpan.Slice(4);
+                }
+
+                if (destSpan.Length > 0)
+                {
+                    fillValue.Slice(0, destSpan.Length).CopyTo(destSpan);
                 }
                 break;
             default:
@@ -170,6 +196,7 @@ public class SparseStream : Stream
         return (null, 0);
     }
 
+    /// <inheritdoc/>
     public override long Seek(long offset, SeekOrigin origin)
     {
         switch (origin)
@@ -183,6 +210,15 @@ public class SparseStream : Stream
         return Position;
     }
 
-    public override void SetLength(long value) => throw new NotSupportedException();
-    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    /// <inheritdoc/>
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    /// <inheritdoc/>
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
 }
