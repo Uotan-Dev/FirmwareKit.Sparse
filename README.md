@@ -16,7 +16,8 @@ dotnet add package FirmwareKit.Sparse
 ### Reading a Sparse Image
 
 ```csharp
-using FirmwareKit.Sparse;
+using FirmwareKit.Sparse.Core;
+using FirmwareKit.Sparse.Streams;
 
 // Parse a sparse image file
 using var sparseFile = SparseFile.FromImageFile("system.simg");
@@ -30,24 +31,25 @@ stream.Read(buffer, 0, buffer.Length);
 ### Converting Sparse to Raw
 
 ```csharp
-using FirmwareKit.Sparse;
+using FirmwareKit.Sparse.Utils;
 
-SparseImageConverter.ConvertSparseToRaw(new[] { "system.img" }, "system.raw.img");
+SparseImageConverter.ConvertSparseToRaw(new[] { "system.simg" }, "system.raw.img");
 ```
 
 ### Resparsing (Splitting)
 
 ```csharp
-using FirmwareKit.Sparse;
+using FirmwareKit.Sparse.Core;
+using System.IO;
 
 using var sparseFile = SparseFile.FromImageFile("massive_system.simg");
 // Split into multiple sparse files, each max 512MB
 var smallerFiles = sparseFile.Resparse(512 * 1024 * 1024);
 
-foreach (var file in smallerFiles)
+for (int i = 0; i < smallerFiles.Count; i++)
 {
-    using var fs = new FileStream($"part_{file.Header.ImageChecksum}.img", FileMode.Create);
-    file.WriteToStream(fs);
+    using var fs = new FileStream($"part_{i}.simg", FileMode.Create);
+    smallerFiles[i].WriteToStream(fs);
 }
 ```
 

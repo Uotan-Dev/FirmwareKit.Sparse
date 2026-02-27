@@ -404,6 +404,11 @@ public class SparseImageStream : Stream
             throw new NotSupportedException();
         }
 
+        public Task WriteToAsync(Stream stream, CancellationToken cancellationToken = default)
+        {
+            throw new NotSupportedException();
+        }
+
         public void Dispose() { }
         public ISparseDataProvider GetSubProvider(long subOffset, long subLength)
         {

@@ -1,4 +1,5 @@
 global using FirmwareKit.Sparse.Core;
+global using FirmwareKit.Sparse.IO;
 global using FirmwareKit.Sparse.DataProviders;
 global using FirmwareKit.Sparse.Models;
 global using FirmwareKit.Sparse.Streams;
