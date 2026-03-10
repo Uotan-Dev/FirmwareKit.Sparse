@@ -12,22 +12,33 @@ public static class SparseImageConverter
     /// </summary>
     /// <param name="inputFiles">A collection of input sparse image files.</param>
     /// <param name="outputFile">The path to the output raw image file.</param>
-    public static void ConvertSparseToRaw(IEnumerable<string> inputFiles, string outputFile)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public static async Task ConvertSparseToRawAsync(IEnumerable<string> inputFiles, string outputFile, CancellationToken cancellationToken = default)
     {
-        using var outputStream = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
+        // Using FileOptions.WriteThrough and SequentialScan for better I/O performance
+        using var outputStream = new FileStream(outputFile, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.SequentialScan);
         long maxFileSize = 0;
+
+        // Peek headers to determine total output size first to minimize disk allocation overhead
         foreach (var inputFile in inputFiles)
         {
             var header = SparseFile.PeekHeader(inputFile);
             var fileSize = (long)header.TotalBlocks * header.BlockSize;
-            maxFileSize = Math.Max(maxFileSize, fileSize);
+            if (fileSize > maxFileSize) maxFileSize = fileSize;
         }
-        outputStream.SetLength(maxFileSize);
+
+        if (maxFileSize > 0)
+        {
+            outputStream.SetLength(maxFileSize);
+        }
+
         foreach (var inputFile in inputFiles)
         {
-            using var sparseFile = SparseFile.FromImageFile(inputFile);
-            sparseFile.WriteRawToStream(outputStream, true);
+            using var sparseFile = await SparseFile.FromImageFileAsync(inputFile, false, false, null, cancellationToken);
+            await sparseFile.WriteRawToStreamAsync(outputStream, true, cancellationToken);
         }
+
+        await outputStream.FlushAsync(cancellationToken);
     }
 
     /// <summary>
@@ -36,11 +47,12 @@ public static class SparseImageConverter
     /// <param name="inputFile">The path to the input raw image file.</param>
     /// <param name="outputFile">The path to the output sparse image file.</param>
     /// <param name="blockSize">The block size (default is 4096).</param>
-    public static void ConvertRawToSparse(string inputFile, string outputFile, uint blockSize = 4096)
+    /// <param name="cancellationToken">The cancellation token.</param>
+    public static async Task ConvertRawToSparseAsync(string inputFile, string outputFile, uint blockSize = 4096, CancellationToken cancellationToken = default)
     {
-        using var outputStream = new FileStream(outputFile, FileMode.Create, FileAccess.Write);
-        using var sparseFile = SparseFile.FromRawFile(inputFile, blockSize);
-        sparseFile.WriteToStream(outputStream);
+        using var outputStream = new FileStream(outputFile, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.SequentialScan);
+        using var sparseFile = await SparseReader.FromRawFileAsync(inputFile, blockSize, false, null, cancellationToken);
+        await sparseFile.WriteToStreamAsync(outputStream, true, false, false, cancellationToken);
     }
 
     /// <summary>
@@ -53,25 +65,19 @@ public static class SparseImageConverter
     {
         using var stream = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
         using var sparseFile = SparseFile.FromStream(stream);
-        var files = sparseFile.Resparse(maxFileSize);
 
-        try
+        var i = 0;
+        foreach (var file in sparseFile.Resparse(maxFileSize))
         {
-            for (var i = 0; i < files.Count; i++)
+            using (file)
             {
                 var outPath = outputPattern.Contains("{0}")
                     ? string.Format(outputPattern, i)
                     : $"{outputPattern}.{i:D2}";
 
                 using var outStream = new FileStream(outPath, FileMode.Create, FileAccess.Write);
-                files[i].WriteToStream(outStream, true);
-            }
-        }
-        finally
-        {
-            foreach (var f in files)
-            {
-                f.Dispose();
+                file.WriteToStream(outStream, true);
+                i++;
             }
         }
     }

@@ -93,11 +93,95 @@ public static class Crc32
     public static uint Update(uint crc, ReadOnlySpan<byte> data)
     {
         var result = crc;
+
+        if (data.Length >= 8)
+        {
+            while (data.Length >= 8)
+            {
+                result = CrcTable[(result ^ data[0]) & 0xFF] ^ (result >> 8);
+                result = CrcTable[(result ^ data[1]) & 0xFF] ^ (result >> 8);
+                result = CrcTable[(result ^ data[2]) & 0xFF] ^ (result >> 8);
+                result = CrcTable[(result ^ data[3]) & 0xFF] ^ (result >> 8);
+                result = CrcTable[(result ^ data[4]) & 0xFF] ^ (result >> 8);
+                result = CrcTable[(result ^ data[5]) & 0xFF] ^ (result >> 8);
+                result = CrcTable[(result ^ data[6]) & 0xFF] ^ (result >> 8);
+                result = CrcTable[(result ^ data[7]) & 0xFF] ^ (result >> 8);
+                data = data.Slice(8);
+            }
+        }
+
         foreach (var b in data)
         {
             result = CrcTable[(result ^ b) & 0xFF] ^ (result >> 8);
         }
+
         return result;
+    }
+
+    /// <summary>
+    /// Updates the CRC32 checksum with zero bytes (simulating a gap or sparse area).
+    /// </summary>
+    public static uint UpdateZero(uint crc, long length)
+    {
+        var result = crc;
+        for (long i = 0; i < length; i++)
+        {
+            result = CrcTable[result & 0xFF] ^ (result >> 8);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Updates the CRC32 checksum with a repeated 4-byte value.
+    /// </summary>
+    public static uint UpdateRepeated(uint crc, uint value, long totalLength)
+    {
+        var result = crc;
+        Span<byte> valData = stackalloc byte[4];
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(valData, value);
+
+        var count = totalLength / 4;
+        for (long i = 0; i < count; i++)
+        {
+            result = CrcTable[(result ^ valData[0]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ valData[1]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ valData[2]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ valData[3]) & 0xFF] ^ (result >> 8);
+        }
+
+        var rem = (int)(totalLength % 4);
+        for (int i = 0; i < rem; i++)
+        {
+            result = CrcTable[(result ^ valData[i]) & 0xFF] ^ (result >> 8);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Returns the initial CRC32 value.
+    /// </summary>
+    public static uint Begin() => 0xFFFFFFFF;
+
+    /// <summary>
+    /// Finalizes the CRC32 calculation.
+    /// </summary>
+    public static uint Finish(uint crc) => crc ^ 0xFFFFFFFF;
+}
+result = CrcTable[(result ^ data[2]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ data[3]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ data[4]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ data[5]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ data[6]) & 0xFF] ^ (result >> 8);
+            result = CrcTable[(result ^ data[7]) & 0xFF] ^ (result >> 8);
+            data = data.Slice(8);
+        }
+
+        foreach (var b in data)
+{
+    result = CrcTable[(result ^ b) & 0xFF] ^ (result >> 8);
+}
+return result;
     }
 
     /// <summary>
@@ -108,62 +192,62 @@ public static class Crc32
     /// <param name="length">The total length in bytes (must be a multiple of 4).</param>
     /// <returns>The updated CRC32 value.</returns>
     public static uint UpdateRepeated(uint crc, uint pattern, long length)
+{
+    var result = crc;
+    var p0 = (byte)(pattern & 0xFF);
+    var p1 = (byte)((pattern >> 8) & 0xFF);
+    var p2 = (byte)((pattern >> 16) & 0xFF);
+    var p3 = (byte)((pattern >> 24) & 0xFF);
+
+    for (long i = 0; i < length / 4; i++)
     {
-        var result = crc;
-        var p0 = (byte)(pattern & 0xFF);
-        var p1 = (byte)((pattern >> 8) & 0xFF);
-        var p2 = (byte)((pattern >> 16) & 0xFF);
-        var p3 = (byte)((pattern >> 24) & 0xFF);
-
-        for (long i = 0; i < length / 4; i++)
-        {
-            result = CrcTable[(result ^ p0) & 0xFF] ^ (result >> 8);
-            result = CrcTable[(result ^ p1) & 0xFF] ^ (result >> 8);
-            result = CrcTable[(result ^ p2) & 0xFF] ^ (result >> 8);
-            result = CrcTable[(result ^ p3) & 0xFF] ^ (result >> 8);
-        }
-
-        // Handle remaining bytes if any (though usually it's multiple of 4)
-        var remaining = (int)(length % 4);
-        if (remaining > 0) result = CrcTable[(result ^ p0) & 0xFF] ^ (result >> 8);
-        if (remaining > 1) result = CrcTable[(result ^ p1) & 0xFF] ^ (result >> 8);
-        if (remaining > 2) result = CrcTable[(result ^ p2) & 0xFF] ^ (result >> 8);
-
-        return result;
+        result = CrcTable[(result ^ p0) & 0xFF] ^ (result >> 8);
+        result = CrcTable[(result ^ p1) & 0xFF] ^ (result >> 8);
+        result = CrcTable[(result ^ p2) & 0xFF] ^ (result >> 8);
+        result = CrcTable[(result ^ p3) & 0xFF] ^ (result >> 8);
     }
 
-    /// <summary>
-    /// Updates the CRC32 checksum with a zero-filled sequence of the specified length.
-    /// </summary>
-    /// <param name="crc">The current CRC32 value.</param>
-    /// <param name="length">The length of the zero-filled sequence.</param>
-    /// <returns>The updated CRC32 value.</returns>
-    public static uint UpdateZero(uint crc, long length)
-    {
-        var result = crc;
-        for (long i = 0; i < length; i++)
-        {
-            result = CrcTable[(result ^ 0) & 0xFF] ^ (result >> 8);
-        }
-        return result;
-    }
+    // Handle remaining bytes if any (though usually it's multiple of 4)
+    var remaining = (int)(length % 4);
+    if (remaining > 0) result = CrcTable[(result ^ p0) & 0xFF] ^ (result >> 8);
+    if (remaining > 1) result = CrcTable[(result ^ p1) & 0xFF] ^ (result >> 8);
+    if (remaining > 2) result = CrcTable[(result ^ p2) & 0xFF] ^ (result >> 8);
 
-    /// <summary>
-    /// Starts a new CRC32 calculation.
-    /// </summary>
-    /// <returns>The initial CRC32 value.</returns>
-    public static uint Begin()
-    {
-        return 0xFFFFFFFF;
-    }
+    return result;
+}
 
-    /// <summary>
-    /// Completes the CRC32 calculation.
-    /// </summary>
-    /// <param name="crc">The final CRC32 value.</param>
-    /// <returns>The finished checksum.</returns>
-    public static uint Finish(uint crc)
+/// <summary>
+/// Updates the CRC32 checksum with a zero-filled sequence of the specified length.
+/// </summary>
+/// <param name="crc">The current CRC32 value.</param>
+/// <param name="length">The length of the zero-filled sequence.</param>
+/// <returns>The updated CRC32 value.</returns>
+public static uint UpdateZero(uint crc, long length)
+{
+    var result = crc;
+    for (long i = 0; i < length; i++)
     {
-        return crc ^ 0xFFFFFFFF;
+        result = CrcTable[(result ^ 0) & 0xFF] ^ (result >> 8);
     }
+    return result;
+}
+
+/// <summary>
+/// Starts a new CRC32 calculation.
+/// </summary>
+/// <returns>The initial CRC32 value.</returns>
+public static uint Begin()
+{
+    return 0xFFFFFFFF;
+}
+
+/// <summary>
+/// Completes the CRC32 calculation.
+/// </summary>
+/// <param name="crc">The final CRC32 value.</param>
+/// <returns>The finished checksum.</returns>
+public static uint Finish(uint crc)
+{
+    return crc ^ 0xFFFFFFFF;
+}
 }

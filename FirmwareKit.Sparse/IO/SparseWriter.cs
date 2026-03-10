@@ -3,12 +3,12 @@ namespace FirmwareKit.Sparse.IO;
 using FirmwareKit.Sparse.Core;
 using FirmwareKit.Sparse.Models;
 using FirmwareKit.Sparse.Utils;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Buffers;
-using System.Linq;
 
 /// <summary>
 /// Provides methods for writing sparse image data.
@@ -62,7 +62,10 @@ public static class SparseWriter
             var needsTrailingSkip = outHeader.TotalBlocks > sumBlocks;
 
             var totalChunks = (uint)finalChunks.Count;
-            if (needsTrailingSkip) totalChunks++;
+            if (needsTrailingSkip)
+            {
+                totalChunks++;
+            }
             if (includeCrc) totalChunks++;
 
             outHeader = outHeader with { TotalChunks = totalChunks };
@@ -71,20 +74,20 @@ public static class SparseWriter
                 outHeader = outHeader with { TotalBlocks = sumBlocks };
             }
 
-            var headerData = new byte[SparseFormat.SparseHeaderSize];
-            outHeader.WriteTo(headerData);
-            await targetStream.WriteAsync(headerData, 0, headerData.Length, cancellationToken);
+            var headerDataArr = (stackalloc byte[SparseFormat.SparseHeaderSize]);
+            outHeader.WriteTo(headerDataArr);
+            await targetStream.WriteAsync(headerDataArr.ToArray(), 0, headerDataArr.Length, cancellationToken);
 
             var checksum = Crc32.Begin();
             var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             try
             {
-                var chunkHeaderData = new byte[SparseFormat.ChunkHeaderSize];
-                var fillValData = new byte[4];
+                var chunkHeaderData = (stackalloc byte[SparseFormat.ChunkHeaderSize]);
+                var fillValData = (stackalloc byte[4]);
                 foreach (var chunk in finalChunks)
                 {
                     chunk.Header.WriteTo(chunkHeaderData);
-                    await targetStream.WriteAsync(chunkHeaderData, 0, chunkHeaderData.Length, cancellationToken);
+                    await targetStream.WriteAsync(chunkHeaderData.ToArray(), 0, chunkHeaderData.Length, cancellationToken);
 
                     var expectedDataSize = (long)chunk.Header.ChunkSize * outHeader.BlockSize;
 
@@ -101,9 +104,9 @@ public static class SparseWriter
                                     while (providerOffset < chunk.DataProvider.Length)
                                     {
                                         var toRead = (int)Math.Min(buffer.Length, chunk.DataProvider.Length - providerOffset);
-                                        var read = chunk.DataProvider.Read(providerOffset, buffer, 0, toRead);
+                                        var read = chunk.DataProvider.Read(providerOffset, buffer.AsSpan(0, toRead));
                                         if (read <= 0) break;
-                                        checksum = Crc32.Update(checksum, buffer, 0, read);
+                                        checksum = Crc32.Update(checksum, buffer.AsSpan(0, read));
                                         providerOffset += read;
                                     }
                                 }
@@ -124,7 +127,7 @@ public static class SparseWriter
                             }
                             else
                             {
-                                Array.Clear(buffer, 0, buffer.Length);
+                                Array.Clear(buffer, 0, (int)Math.Min(buffer.Length, (int)expectedDataSize));
                                 var remaining = expectedDataSize;
                                 while (remaining > 0)
                                 {
@@ -138,7 +141,7 @@ public static class SparseWriter
 
                         case (ushort)ChunkType.Fill:
                             BinaryPrimitives.WriteUInt32LittleEndian(fillValData, chunk.FillValue);
-                            await targetStream.WriteAsync(fillValData, 0, fillValData.Length, cancellationToken);
+                            await targetStream.WriteAsync(fillValData.ToArray(), 0, fillValData.Length, cancellationToken);
                             if (includeCrc) checksum = Crc32.UpdateRepeated(checksum, chunk.FillValue, expectedDataSize);
                             break;
 
@@ -158,7 +161,7 @@ public static class SparseWriter
                         TotalSize = SparseFormat.ChunkHeaderSize
                     };
                     skipChunkHeader.WriteTo(chunkHeaderData);
-                    await targetStream.WriteAsync(chunkHeaderData, 0, chunkHeaderData.Length, cancellationToken);
+                    await targetStream.WriteAsync(chunkHeaderData.ToArray(), 0, chunkHeaderData.Length, cancellationToken);
                     if (includeCrc) checksum = Crc32.UpdateZero(checksum, (long)skipBlocks * outHeader.BlockSize);
                 }
 
@@ -172,9 +175,9 @@ public static class SparseWriter
                         TotalSize = SparseFormat.ChunkHeaderSize + 4
                     };
                     crcChunkHeader.WriteTo(chunkHeaderData);
-                    await targetStream.WriteAsync(chunkHeaderData, 0, chunkHeaderData.Length, cancellationToken);
+                    await targetStream.WriteAsync(chunkHeaderData.ToArray(), 0, chunkHeaderData.Length, cancellationToken);
                     BinaryPrimitives.WriteUInt32LittleEndian(fillValData, finalChecksum);
-                    await targetStream.WriteAsync(fillValData, 0, 4, cancellationToken);
+                    await targetStream.WriteAsync(fillValData.ToArray(), 0, 4, cancellationToken);
                 }
             }
             finally

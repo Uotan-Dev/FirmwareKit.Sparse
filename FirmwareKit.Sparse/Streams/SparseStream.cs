@@ -50,6 +50,62 @@ public class SparseStream : Stream
     /// <inheritdoc/>
     public override int Read(byte[] buffer, int offset, int count)
     {
+        return Read(buffer.AsSpan(offset, count));
+    }
+
+#if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+    /// <inheritdoc/>
+    public override int Read(Span<byte> buffer)
+    {
+        if (_position >= _length)
+        {
+            return 0;
+        }
+
+        var toRead = (int)Math.Min(buffer.Length, _length - _position);
+        var totalRead = 0;
+        Span<byte> fillValue = stackalloc byte[4];
+
+        while (totalRead < toRead)
+        {
+            var (chunk, startBlock) = FindChunkAtOffset(_position);
+            int currentReadSize;
+
+            if (chunk == null)
+            {
+                var nextChunkBlock = GetNextChunkBlock(_position);
+                var endOfGap = Math.Min(_length, (long)nextChunkBlock * _sparseFile.Header.BlockSize);
+                currentReadSize = (int)Math.Min(toRead - totalRead, endOfGap - _position);
+
+                if (currentReadSize <= 0)
+                {
+                    break;
+                }
+
+                buffer.Slice(totalRead, currentReadSize).Clear();
+
+                _position += currentReadSize;
+                totalRead += currentReadSize;
+                continue;
+            }
+
+            var chunkStartOffset = (long)startBlock * _sparseFile.Header.BlockSize;
+            var offsetInChunk = _position - chunkStartOffset;
+            var chunkRemaining = ((long)chunk.Header.ChunkSize * _sparseFile.Header.BlockSize) - offsetInChunk;
+            currentReadSize = (int)Math.Min(toRead - totalRead, chunkRemaining);
+
+            ProcessChunkData(chunk, offsetInChunk, buffer.Slice(totalRead, currentReadSize), fillValue);
+
+            _position += currentReadSize;
+            totalRead += currentReadSize;
+        }
+
+        return totalRead;
+    }
+#else
+    /// <inheritdoc/>
+    public override int Read(byte[] buffer, int offset, int count)
+    {
         if (_position >= _length)
         {
             return 0;
@@ -57,7 +113,8 @@ public class SparseStream : Stream
 
         var toRead = (int)Math.Min(count, _length - _position);
         var totalRead = 0;
-        Span<byte> fillValue = stackalloc byte[4];
+        byte[] fillValueArr = new byte[4];
+        Span<byte> fillValue = fillValueArr;
 
         while (totalRead < toRead)
         {
@@ -87,7 +144,7 @@ public class SparseStream : Stream
             var chunkRemaining = ((long)chunk.Header.ChunkSize * _sparseFile.Header.BlockSize) - offsetInChunk;
             currentReadSize = (int)Math.Min(toRead - totalRead, chunkRemaining);
 
-            ProcessChunkData(chunk, offsetInChunk, buffer, offset + totalRead, currentReadSize, fillValue);
+            ProcessChunkData(chunk, offsetInChunk, buffer.AsSpan(offset + totalRead, currentReadSize), fillValue);
 
             _position += currentReadSize;
             totalRead += currentReadSize;
@@ -95,52 +152,29 @@ public class SparseStream : Stream
 
         return totalRead;
     }
+#endif
 
-    private uint GetNextChunkBlock(long position)
-    {
-        var targetBlock = (uint)(position / _sparseFile.Header.BlockSize);
-
-        var low = 0;
-        var high = _chunkLookup.Length - 1;
-        var nextBlock = (uint)(_length / _sparseFile.Header.BlockSize);
-
-        while (low <= high)
-        {
-            var mid = low + ((high - low) / 2);
-            if (_chunkLookup[mid].StartBlock > targetBlock)
-            {
-                nextBlock = _chunkLookup[mid].StartBlock;
-                high = mid - 1;
-            }
-            else
-            {
-                low = mid + 1;
-            }
-        }
-        return nextBlock;
-    }
-
-    private void ProcessChunkData(SparseChunk chunk, long offsetInChunk, byte[] buffer, int bufferOffset, int count, Span<byte> fillValue)
+    private void ProcessChunkData(SparseChunk chunk, long offsetInChunk, Span<byte> destSpan, Span<byte> fillValue)
     {
         switch (chunk.Header.ChunkType)
         {
             case (ushort)ChunkType.Raw:
                 if (chunk.DataProvider != null)
                 {
-                    var read = chunk.DataProvider.Read(offsetInChunk, buffer, bufferOffset, count);
-                    if (read < count)
+                    var read = chunk.DataProvider.Read(offsetInChunk, destSpan);
+                    if (read < destSpan.Length)
                     {
-                        Array.Clear(buffer, bufferOffset + read, count - read);
+                        destSpan.Slice(read).Clear();
                     }
                 }
                 else
                 {
-                    Array.Clear(buffer, bufferOffset, count);
+                    destSpan.Clear();
                 }
                 break;
             case (ushort)ChunkType.Fill:
                 BinaryPrimitives.WriteUInt32LittleEndian(fillValue, chunk.FillValue);
-                var destSpan = buffer.AsSpan(bufferOffset, count);
+                var count = destSpan.Length;
                 var firstFillSize = (int)(4 - (offsetInChunk % 4));
                 if (firstFillSize > 0 && firstFillSize < 4)
                 {
@@ -161,7 +195,7 @@ public class SparseStream : Stream
                 }
                 break;
             default:
-                Array.Clear(buffer, bufferOffset, count);
+                destSpan.Clear();
                 break;
         }
     }

@@ -1,15 +1,15 @@
 namespace FirmwareKit.Sparse.IO;
 
 using FirmwareKit.Sparse.Core;
-using FirmwareKit.Sparse.Models;
 using FirmwareKit.Sparse.DataProviders;
+using FirmwareKit.Sparse.Models;
 using FirmwareKit.Sparse.Utils;
+using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Buffers;
-using System.Runtime.InteropServices;
 
 /// <summary>
 /// Provides methods for reading and importing sparse image data.
@@ -131,8 +131,8 @@ public static class SparseReader
                                 while (remaining > 0)
                                 {
                                     var toRead = (int)Math.Min(buffer.Length, remaining);
-                                    stream.ReadExactly(buffer, 0, toRead);
-                                    checksum = Crc32.Update(checksum.Value, buffer, 0, toRead);
+                                    stream.ReadExactly(buffer.AsSpan(0, toRead));
+                                    checksum = Crc32.Update(checksum.Value, buffer.AsSpan(0, toRead));
                                     remaining -= toRead;
                                 }
                                 chunk.DataProvider = new FileDataProvider(filePath, dataOffset, dataSize);
@@ -143,8 +143,8 @@ public static class SparseReader
                                 while (remaining > 0)
                                 {
                                     var toRead = (int)Math.Min(buffer.Length, remaining);
-                                    stream.ReadExactly(buffer, 0, toRead);
-                                    checksum = Crc32.Update(checksum.Value, buffer, 0, toRead);
+                                    stream.ReadExactly(buffer.AsSpan(0, toRead));
+                                    checksum = Crc32.Update(checksum.Value, buffer.AsSpan(0, toRead));
                                     remaining -= toRead;
                                 }
                                 chunk.DataProvider = new StreamDataProvider(stream, dataOffset, dataSize, true);
@@ -374,7 +374,7 @@ public static class SparseReader
                                 {
                                     var toRead = (int)Math.Min(buffer.Length, remaining);
                                     await ReadExactlyAsync(stream, buffer, 0, toRead, cancellationToken);
-                                    checksum = Crc32.Update(checksum.Value, buffer, 0, toRead);
+                                    checksum = Crc32.Update(checksum.Value, buffer.AsSpan(0, toRead));
                                     remaining -= toRead;
                                 }
                                 chunk.DataProvider = new FileDataProvider(filePath, dataOffset, dataSize);
@@ -386,7 +386,7 @@ public static class SparseReader
                                 {
                                     var toRead = (int)Math.Min(buffer.Length, remaining);
                                     await ReadExactlyAsync(stream, buffer, 0, toRead, cancellationToken);
-                                    checksum = Crc32.Update(checksum.Value, buffer, 0, toRead);
+                                    checksum = Crc32.Update(checksum.Value, buffer.AsSpan(0, toRead));
                                     remaining -= toRead;
                                 }
                                 chunk.DataProvider = new StreamDataProvider(stream, dataOffset, dataSize, true);
@@ -406,7 +406,22 @@ public static class SparseReader
                         else if (filePath != null)
                         {
                             chunk.DataProvider = new FileDataProvider(filePath, stream.Position, dataSize);
-                            stream.Seek(dataSize, SeekOrigin.Current);
+                            if (stream.CanSeek)
+                            {
+                                stream.Seek(dataSize, SeekOrigin.Current);
+                            }
+                            else
+                            {
+                                var remaining = dataSize;
+                                while (remaining > 0)
+                                {
+                                    var toRead = (int)Math.Min(buffer?.Length ?? 65536, (int)Math.Min(remaining, int.MaxValue));
+                                    var skipBuffer = ArrayPool<byte>.Shared.Rent(toRead);
+                                    try { await ReadExactlyAsync(stream, skipBuffer, 0, toRead, cancellationToken); }
+                                    finally { ArrayPool<byte>.Shared.Return(skipBuffer); }
+                                    remaining -= toRead;
+                                }
+                            }
                         }
                         else if (stream.CanSeek)
                         {
@@ -571,10 +586,39 @@ public static class SparseReader
     public static SparseFile FromRawFile(string filePath, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null)
     {
         var fi = new FileInfo(filePath);
-        var sparseFile = new SparseFile(blockSize, fi.Length, verbose) { Logger = logger };
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-        ReadFromStream(sparseFile, fs, SparseReadMode.Normal);
+        var sparseFile = new SparseFile(blockSize, (long)fi.Length, verbose) { Logger = logger };
+        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
+        sparseFile.AddChunkRaw(new SparseChunk
+        {
+            Header = new ChunkHeader
+            {
+                ChunkType = (ushort)ChunkType.Raw,
+                ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
+                TotalSize = (uint)(fi.Length + SparseFormat.ChunkHeaderSize)
+            },
+            DataProvider = new FileDataProvider(filePath, 0, fi.Length)
+        });
         return sparseFile;
+    }
+
+    /// <summary>
+    /// Creates a <see cref="SparseFile"/> by importing a raw binary file asynchronously.
+    /// </summary>
+    public static Task<SparseFile> FromRawFileAsync(string filePath, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
+    {
+        var fi = new FileInfo(filePath);
+        var sparseFile = new SparseFile(blockSize, (long)fi.Length, verbose) { Logger = logger };
+        sparseFile.AddChunkRaw(new SparseChunk
+        {
+            Header = new ChunkHeader
+            {
+                ChunkType = (ushort)ChunkType.Raw,
+                ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
+                TotalSize = (uint)(fi.Length + SparseFormat.ChunkHeaderSize)
+            },
+            DataProvider = new FileDataProvider(filePath, 0, fi.Length)
+        });
+        return Task.FromResult(sparseFile);
     }
 
     /// <summary>

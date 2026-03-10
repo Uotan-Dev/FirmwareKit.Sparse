@@ -202,7 +202,7 @@ public class SparseFile : IDisposable
     /// <summary>
     /// Splits the current sparse file into multiple sparse files, each not exceeding the specified maximum size.
     /// </summary>
-    public List<SparseFile> Resparse(long maxFileSize)
+    public IEnumerable<SparseFile> Resparse(long maxFileSize)
         => SparseResparser.Resparse(this, maxFileSize);
 
     /// <summary>
@@ -233,13 +233,14 @@ public class SparseFile : IDisposable
         }
 
         long length = SparseFormat.SparseHeaderSize;
+        uint totalChunkBlocks = 0;
         foreach (var chunk in _chunks)
         {
             length += chunk.Header.TotalSize;
+            totalChunkBlocks += chunk.Header.ChunkSize;
         }
 
-        var sumBlocks = (uint)_chunks.Sum(c => c.Header.ChunkSize);
-        if (Header.TotalBlocks > sumBlocks)
+        if (Header.TotalBlocks > totalChunkBlocks)
         {
             length += SparseFormat.ChunkHeaderSize;
         }
@@ -410,29 +411,9 @@ public class SparseFile : IDisposable
     /// </summary>
     public void AddDontCareChunk(long size, uint? blockIndex = null)
     {
-        var blockSize = Header.BlockSize;
-        var totalBlocks = (uint)((size + blockSize - 1) / blockSize);
+        var totalBlocks = (uint)((size + Header.BlockSize - 1) / Header.BlockSize);
         var currentBlockStart = GetNextBlockAndCheckOverlap(blockIndex, totalBlocks);
-
-        var remaining = size;
-        while (remaining > 0)
-        {
-            var partBlocks = Math.Min((uint)((remaining + blockSize - 1) / blockSize), 0x00FFFFFFu);
-            var actualPartSize = (long)partBlocks * blockSize;
-
-            AddChunkSorted(new SparseChunk(new ChunkHeader
-            {
-                ChunkType = (ushort)ChunkType.DontCare,
-                ChunkSize = partBlocks,
-                TotalSize = SparseFormat.ChunkHeaderSize
-            })
-            {
-                StartBlock = currentBlockStart
-            });
-
-            currentBlockStart += partBlocks;
-            remaining -= actualPartSize;
-        }
+        AddDontCareChunkInternal(size, currentBlockStart);
     }
 
     /// <summary>
@@ -467,27 +448,71 @@ public class SparseFile : IDisposable
     private uint GetNextBlockAndCheckOverlap(uint? blockIndex, uint sizeInBlocks)
     {
         var start = blockIndex ?? CurrentBlock;
-        foreach (var chunk in _chunks)
+        var end = start + sizeInBlocks;
+
+        // Optimized overlap check using binary search would be overkill if chunks are few,
+        // but for many chunks we can at least optimize the linear search.
+        for (int i = 0; i < _chunks.Count; i++)
         {
-            if (start < chunk.StartBlock + chunk.Header.ChunkSize && start + sizeInBlocks > chunk.StartBlock)
+            var chunk = _chunks[i];
+            var chunkEnd = chunk.StartBlock + chunk.Header.ChunkSize;
+            if (start < chunkEnd && end > chunk.StartBlock)
             {
-                throw new ArgumentException($"Block region [{start}, {start + sizeInBlocks}) overlaps with existing chunk [{chunk.StartBlock}, {chunk.StartBlock + chunk.Header.ChunkSize}).");
+                throw new ArgumentException($"Block region [{start}, {end}) overlaps with existing chunk [{chunk.StartBlock}, {chunkEnd}).");
             }
         }
 
         if (blockIndex.HasValue && blockIndex.Value > CurrentBlock)
         {
-            AddDontCareChunk((long)(blockIndex.Value - CurrentBlock) * Header.BlockSize, CurrentBlock);
+            // Internal call to avoid recursion and repeated checks
+            AddDontCareChunkInternal((long)(blockIndex.Value - CurrentBlock) * Header.BlockSize, CurrentBlock);
         }
 
         return start;
     }
 
+    private void AddDontCareChunkInternal(long size, uint startBlock)
+    {
+        var blockSize = Header.BlockSize;
+        var remaining = size;
+        var currentBlockStart = startBlock;
+        while (remaining > 0)
+        {
+            var partBlocks = Math.Min((uint)((remaining + blockSize - 1) / blockSize), 0x00FFFFFFu);
+
+            AddChunkSorted(new SparseChunk(new ChunkHeader
+            {
+                ChunkType = (ushort)ChunkType.DontCare,
+                ChunkSize = partBlocks,
+                TotalSize = SparseFormat.ChunkHeaderSize
+            })
+            {
+                StartBlock = currentBlockStart
+            });
+
+            currentBlockStart += partBlocks;
+            remaining -= (long)partBlocks * blockSize;
+        }
+    }
+
     private void AddChunkSorted(SparseChunk chunk)
     {
-        var index = _chunks.FindIndex(c => c.StartBlock > chunk.StartBlock);
-        if (index == -1) _chunks.Add(chunk);
+        // Many use cases add chunks sequentially. Optimized for that.
+        if (_chunks.Count == 0 || chunk.StartBlock >= _chunks[_chunks.Count - 1].StartBlock)
+        {
+            _chunks.Add(chunk);
+            return;
+        }
+
+        var index = _chunks.BinarySearch(chunk, SparseChunkComparer.Instance);
+        if (index < 0) _chunks.Insert(~index, chunk);
         else _chunks.Insert(index, chunk);
+    }
+
+    private class SparseChunkComparer : IComparer<SparseChunk>
+    {
+        public static readonly SparseChunkComparer Instance = new SparseChunkComparer();
+        public int Compare(SparseChunk? x, SparseChunk? y) => x!.StartBlock.CompareTo(y!.StartBlock);
     }
 
     /// <summary>
