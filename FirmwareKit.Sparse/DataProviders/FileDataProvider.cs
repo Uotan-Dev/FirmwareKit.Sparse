@@ -1,4 +1,6 @@
-﻿namespace FirmwareKit.Sparse.DataProviders;
+﻿using Microsoft.Win32.SafeHandles;
+
+namespace FirmwareKit.Sparse.DataProviders;
 
 /// <summary>
 /// File-based sparse data provider.
@@ -103,7 +105,7 @@ public class FileDataProvider : ISparseDataProvider
 
         var toRead = (int)Math.Min(buffer.Length, length - inOffset);
 #if NET6_0_OR_GREATER
-        using var handle = File.OpenHandle(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.RandomAccess);
+        using SafeFileHandle handle = File.OpenHandle(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.RandomAccess);
         System.IO.RandomAccess.Read(handle, buffer.Slice(0, toRead), offset + inOffset);
         return toRead;
 #else

@@ -22,7 +22,7 @@ public static class SparseImageConverter
         // Peek headers to determine total output size first to minimize disk allocation overhead
         foreach (var inputFile in inputFiles)
         {
-            var header = SparseFile.PeekHeader(inputFile);
+            SparseHeader header = SparseFile.PeekHeader(inputFile);
             var fileSize = (long)header.TotalBlocks * header.BlockSize;
             if (fileSize > maxFileSize) maxFileSize = fileSize;
         }
@@ -34,7 +34,7 @@ public static class SparseImageConverter
 
         foreach (var inputFile in inputFiles)
         {
-            using var sparseFile = await SparseFile.FromImageFileAsync(inputFile, false, false, null, cancellationToken);
+            using SparseFile sparseFile = await SparseFile.FromImageFileAsync(inputFile, true, false, null, cancellationToken);
             await sparseFile.WriteRawToStreamAsync(outputStream, true, cancellationToken);
         }
 
@@ -51,7 +51,7 @@ public static class SparseImageConverter
     public static async Task ConvertRawToSparseAsync(string inputFile, string outputFile, uint blockSize = 4096, CancellationToken cancellationToken = default)
     {
         using var outputStream = new FileStream(outputFile, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.SequentialScan);
-        using var sparseFile = await SparseReader.FromRawFileAsync(inputFile, blockSize, false, null, cancellationToken);
+        using SparseFile sparseFile = await SparseReader.FromRawFileAsync(inputFile, blockSize, false, null, cancellationToken);
         await sparseFile.WriteToStreamAsync(outputStream, true, false, false, cancellationToken);
     }
 
@@ -64,10 +64,10 @@ public static class SparseImageConverter
     public static void ResparseImage(string inputFile, string outputPattern, long maxFileSize)
     {
         using var stream = new FileStream(inputFile, FileMode.Open, FileAccess.Read);
-        using var sparseFile = SparseFile.FromStream(stream);
+        using var sparseFile = SparseFile.FromStream(stream, validateCrc: true);
 
         var i = 0;
-        foreach (var file in sparseFile.Resparse(maxFileSize))
+        foreach (SparseFile file in sparseFile.Resparse(maxFileSize))
         {
             using (file)
             {

@@ -58,7 +58,7 @@ public static class SparseReader
     internal static SparseFile FromStreamInternal(Stream stream, string? filePath, bool validateCrc, bool verbose, ISparseLogger? logger)
     {
         var sparseFile = new SparseFile { Verbose = verbose, Logger = logger };
-        var activeLogger = logger ?? SparseLogger.Instance;
+        ISparseLogger activeLogger = logger ?? SparseLogger.Instance;
 
         Span<byte> headerData = stackalloc byte[SparseFormat.SparseHeaderSize];
         stream.ReadExactly(headerData);
@@ -122,11 +122,11 @@ public static class SparseReader
                             throw new InvalidDataException($"Total size ({chunkHeader.TotalSize}) for RAW chunk {i} does not match expected data size ({expectedRawSize})");
                         }
 
-                        if (validateCrc && buffer != null && checksum.HasValue)
+                        if (filePath != null)
                         {
-                            var dataOffset = stream.Position;
-                            if (filePath != null)
+                            if (validateCrc && buffer != null && checksum.HasValue)
                             {
+                                var dataOffset = stream.Position;
                                 var remaining = dataSize;
                                 while (remaining > 0)
                                 {
@@ -137,39 +137,11 @@ public static class SparseReader
                                 }
                                 chunk.DataProvider = new FileDataProvider(filePath, dataOffset, dataSize);
                             }
-                            else if (stream.CanSeek)
-                            {
-                                var remaining = dataSize;
-                                while (remaining > 0)
-                                {
-                                    var toRead = (int)Math.Min(buffer.Length, remaining);
-                                    stream.ReadExactly(buffer.AsSpan(0, toRead));
-                                    checksum = Crc32.Update(checksum.Value, buffer.AsSpan(0, toRead));
-                                    remaining -= toRead;
-                                }
-                                chunk.DataProvider = new StreamDataProvider(stream, dataOffset, dataSize, true);
-                            }
                             else
                             {
-                                if (dataSize > int.MaxValue)
-                                {
-                                    throw new NotSupportedException($"Raw data for chunk {i} is too large ({dataSize} bytes), exceeding memory buffer limits.");
-                                }
-                                var rawData = new byte[dataSize];
-                                stream.ReadExactly(rawData);
-                                checksum = Crc32.Update(checksum.Value, rawData);
-                                chunk.DataProvider = new MemoryDataProvider(rawData);
+                                chunk.DataProvider = new FileDataProvider(filePath, stream.Position, dataSize);
+                                stream.Seek(dataSize, SeekOrigin.Current);
                             }
-                        }
-                        else if (filePath != null)
-                        {
-                            chunk.DataProvider = new FileDataProvider(filePath, stream.Position, dataSize);
-                            stream.Seek(dataSize, SeekOrigin.Current);
-                        }
-                        else if (stream.CanSeek)
-                        {
-                            chunk.DataProvider = new StreamDataProvider(stream, stream.Position, dataSize, true);
-                            stream.Seek(dataSize, SeekOrigin.Current);
                         }
                         else
                         {
@@ -179,6 +151,10 @@ public static class SparseReader
                             }
                             var rawData = new byte[dataSize];
                             stream.ReadExactly(rawData);
+                            if (validateCrc && checksum.HasValue)
+                            {
+                                checksum = Crc32.Update(checksum.Value, rawData);
+                            }
                             chunk.DataProvider = new MemoryDataProvider(rawData);
                         }
                         break;
@@ -205,32 +181,29 @@ public static class SparseReader
                         break;
 
                     case (ushort)ChunkType.DontCare:
+                        if (dataSize != 0)
+                        {
+                            throw new InvalidDataException($"Data size ({dataSize}) for DONT_CARE chunk {i} must be 0");
+                        }
                         if (validateCrc && checksum.HasValue)
                         {
                             checksum = Crc32.UpdateZero(checksum.Value, expectedRawSize);
                         }
-                        if (dataSize > 0)
-                        {
-                            stream.Seek(dataSize, SeekOrigin.Current);
-                        }
                         break;
 
                     case (ushort)ChunkType.Crc32:
-                        if (dataSize >= 4)
+                        if (dataSize != 4)
                         {
-                            if (stream.Read(buffer4) != 4)
-                            {
-                                throw new InvalidDataException($"Failed to read CRC32 value for chunk {i}");
-                            }
-                            var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
-                            if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
-                            {
-                                throw new InvalidDataException($"CRC32 checksum mismatch: file has 0x{fileCrc:X8}, computed 0x{Crc32.Finish(checksum.Value):X8}");
-                            }
-                            if (dataSize > 4)
-                            {
-                                stream.Seek(dataSize - 4, SeekOrigin.Current);
-                            }
+                            throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
+                        }
+                        if (stream.Read(buffer4) != 4)
+                        {
+                            throw new InvalidDataException($"Failed to read CRC32 value for chunk {i}");
+                        }
+                        var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
+                        if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
+                        {
+                            throw new InvalidDataException($"CRC32 checksum mismatch: file has 0x{fileCrc:X8}, computed 0x{Crc32.Finish(checksum.Value):X8}");
                         }
                         break;
 
@@ -299,7 +272,7 @@ public static class SparseReader
     internal static async Task<SparseFile> FromStreamInternalAsync(Stream stream, string? filePath, bool validateCrc, bool verbose, ISparseLogger? logger, CancellationToken cancellationToken)
     {
         var sparseFile = new SparseFile { Verbose = verbose, Logger = logger };
-        var activeLogger = logger ?? SparseLogger.Instance;
+        ISparseLogger activeLogger = logger ?? SparseLogger.Instance;
 
         var headerData = new byte[SparseFormat.SparseHeaderSize];
         await ReadExactlyAsync(stream, headerData, 0, SparseFormat.SparseHeaderSize, cancellationToken);
@@ -364,11 +337,11 @@ public static class SparseReader
                             throw new InvalidDataException($"Total size ({chunkHeader.TotalSize}) for RAW chunk {i} does not match expected data size ({expectedRawSize})");
                         }
 
-                        if (validateCrc && buffer != null && checksum.HasValue)
+                        if (filePath != null)
                         {
-                            var dataOffset = stream.Position;
-                            if (filePath != null)
+                            if (validateCrc && buffer != null && checksum.HasValue)
                             {
+                                var dataOffset = stream.Position;
                                 var remaining = dataSize;
                                 while (remaining > 0)
                                 {
@@ -379,54 +352,11 @@ public static class SparseReader
                                 }
                                 chunk.DataProvider = new FileDataProvider(filePath, dataOffset, dataSize);
                             }
-                            else if (stream.CanSeek)
-                            {
-                                var remaining = dataSize;
-                                while (remaining > 0)
-                                {
-                                    var toRead = (int)Math.Min(buffer.Length, remaining);
-                                    await ReadExactlyAsync(stream, buffer, 0, toRead, cancellationToken);
-                                    checksum = Crc32.Update(checksum.Value, buffer.AsSpan(0, toRead));
-                                    remaining -= toRead;
-                                }
-                                chunk.DataProvider = new StreamDataProvider(stream, dataOffset, dataSize, true);
-                            }
                             else
                             {
-                                if (dataSize > int.MaxValue)
-                                {
-                                    throw new NotSupportedException($"Raw data for chunk {i} is too large ({dataSize} bytes), exceeding memory buffer limits.");
-                                }
-                                var rawData = new byte[dataSize];
-                                await ReadExactlyAsync(stream, rawData, 0, (int)dataSize, cancellationToken);
-                                checksum = Crc32.Update(checksum.Value, rawData);
-                                chunk.DataProvider = new MemoryDataProvider(rawData);
-                            }
-                        }
-                        else if (filePath != null)
-                        {
-                            chunk.DataProvider = new FileDataProvider(filePath, stream.Position, dataSize);
-                            if (stream.CanSeek)
-                            {
+                                chunk.DataProvider = new FileDataProvider(filePath, stream.Position, dataSize);
                                 stream.Seek(dataSize, SeekOrigin.Current);
                             }
-                            else
-                            {
-                                var remaining = dataSize;
-                                while (remaining > 0)
-                                {
-                                    var toRead = (int)Math.Min(buffer?.Length ?? 65536, (int)Math.Min(remaining, int.MaxValue));
-                                    var skipBuffer = ArrayPool<byte>.Shared.Rent(toRead);
-                                    try { await ReadExactlyAsync(stream, skipBuffer, 0, toRead, cancellationToken); }
-                                    finally { ArrayPool<byte>.Shared.Return(skipBuffer); }
-                                    remaining -= toRead;
-                                }
-                            }
-                        }
-                        else if (stream.CanSeek)
-                        {
-                            chunk.DataProvider = new StreamDataProvider(stream, stream.Position, dataSize, true);
-                            stream.Seek(dataSize, SeekOrigin.Current);
                         }
                         else
                         {
@@ -436,6 +366,10 @@ public static class SparseReader
                             }
                             var rawData = new byte[dataSize];
                             await ReadExactlyAsync(stream, rawData, 0, (int)dataSize, cancellationToken);
+                            if (validateCrc && checksum.HasValue)
+                            {
+                                checksum = Crc32.Update(checksum.Value, rawData);
+                            }
                             chunk.DataProvider = new MemoryDataProvider(rawData);
                         }
                         break;
@@ -446,7 +380,7 @@ public static class SparseReader
                             throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} is less than 4 bytes");
                         }
 
-                        await ReadExactlyAsync(stream, buffer4.ToArray(), 0, 4, cancellationToken); // buffer4 is span
+                        await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken);
 
                         chunk.FillValue = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
 
@@ -462,33 +396,30 @@ public static class SparseReader
                         break;
 
                     case (ushort)ChunkType.DontCare:
+                        if (dataSize != 0)
+                        {
+                            throw new InvalidDataException($"Data size ({dataSize}) for DONT_CARE chunk {i} must be 0");
+                        }
                         if (validateCrc && checksum.HasValue)
                         {
                             checksum = Crc32.UpdateZero(checksum.Value, expectedRawSize);
                         }
-                        if (dataSize > 0)
-                        {
-                            stream.Seek(dataSize, SeekOrigin.Current);
-                        }
                         break;
 
                     case (ushort)ChunkType.Crc32:
-                        if (dataSize >= 4)
+                        if (dataSize != 4)
                         {
-                            var crcFileData = new byte[4];
-                            if (await stream.ReadAsync(crcFileData, 0, 4, cancellationToken) != 4)
-                            {
-                                throw new InvalidDataException($"Failed to read CRC32 value for chunk {i}");
-                            }
-                            var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcFileData);
-                            if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
-                            {
-                                throw new InvalidDataException($"CRC32 checksum mismatch: file has 0x{fileCrc:X8}, computed 0x{Crc32.Finish(checksum.Value):X8}");
-                            }
-                            if (dataSize > 4)
-                            {
-                                stream.Seek(dataSize - 4, SeekOrigin.Current);
-                            }
+                            throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
+                        }
+                        var crcFileData = new byte[4];
+                        if (await stream.ReadAsync(crcFileData, 0, 4, cancellationToken) != 4)
+                        {
+                            throw new InvalidDataException($"Failed to read CRC32 value for chunk {i}");
+                        }
+                        var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcFileData);
+                        if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
+                        {
+                            throw new InvalidDataException($"CRC32 checksum mismatch: file has 0x{fileCrc:X8}, computed 0x{Crc32.Finish(checksum.Value):X8}");
                         }
                         break;
 
@@ -555,7 +486,8 @@ public static class SparseReader
     {
         var magicData = new byte[4];
         var pos = stream.CanSeek ? stream.Position : 0;
-        if (stream.Read(magicData, 0, 4) == 4)
+        var read = stream.Read(magicData, 0, 4);
+        if (read == 4)
         {
             var magic = BinaryPrimitives.ReadUInt32LittleEndian(magicData);
             if (stream.CanSeek)
@@ -565,7 +497,8 @@ public static class SparseReader
 
             if (magic == SparseFormat.SparseHeaderMagic)
             {
-                return FromStreamInternal(stream, filePath, validateCrc, verbose, logger);
+                var inputStream = stream.CanSeek ? stream : new PrefixReadStream(stream, magicData, read);
+                return FromStreamInternal(inputStream, filePath, validateCrc, verbose, logger);
             }
         }
 
@@ -575,9 +508,93 @@ public static class SparseReader
         }
 
         // Treat as raw stream
-        var rawFile = new SparseFile(4096, stream.Length, verbose) { Logger = logger };
-        ReadFromStream(rawFile, stream, SparseReadMode.Normal);
+        Stream rawInput;
+        if (stream.CanSeek)
+        {
+            stream.Seek(pos, SeekOrigin.Begin);
+            rawInput = stream;
+        }
+        else
+        {
+            rawInput = new PrefixReadStream(stream, magicData, read);
+        }
+
+        long rawLength;
+        if (rawInput.CanSeek)
+        {
+            rawLength = rawInput.Length - rawInput.Position;
+        }
+        else
+        {
+            using var temp = new MemoryStream();
+            rawInput.CopyTo(temp);
+            var rawBytes = temp.ToArray();
+            var rawFromBytes = new SparseFile(4096, rawBytes.Length, verbose) { Logger = logger };
+            rawFromBytes.AddRawChunk(rawBytes);
+            return rawFromBytes;
+        }
+
+        var rawFile = new SparseFile(4096, rawLength, verbose) { Logger = logger };
+        ReadFromStream(rawFile, rawInput, SparseReadMode.Normal);
         return rawFile;
+    }
+
+    private sealed class PrefixReadStream : Stream
+    {
+        private readonly Stream _inner;
+        private readonly byte[] _prefix;
+        private int _prefixOffset;
+
+        public PrefixReadStream(Stream inner, byte[] prefix, int prefixLength)
+        {
+            _inner = inner;
+            _prefix = new byte[prefixLength];
+            Array.Copy(prefix, _prefix, prefixLength);
+        }
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position
+        {
+            get => throw new NotSupportedException();
+            set => throw new NotSupportedException();
+        }
+
+        public override void Flush() { }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_prefixOffset < _prefix.Length)
+            {
+                var toCopy = Math.Min(count, _prefix.Length - _prefixOffset);
+                Array.Copy(_prefix, _prefixOffset, buffer, offset, toCopy);
+                _prefixOffset += toCopy;
+                return toCopy;
+            }
+
+            return _inner.Read(buffer, offset, count);
+        }
+
+#if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public override int Read(Span<byte> buffer)
+        {
+            if (_prefixOffset < _prefix.Length)
+            {
+                var toCopy = Math.Min(buffer.Length, _prefix.Length - _prefixOffset);
+                _prefix.AsSpan(_prefixOffset, toCopy).CopyTo(buffer);
+                _prefixOffset += toCopy;
+                return toCopy;
+            }
+
+            return _inner.Read(buffer);
+        }
+#endif
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     /// <summary>
@@ -588,14 +605,14 @@ public static class SparseReader
         var fi = new FileInfo(filePath);
         var sparseFile = new SparseFile(blockSize, (long)fi.Length, verbose) { Logger = logger };
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-        sparseFile.AddChunkRaw(new SparseChunk
+        var chunkHeader = new ChunkHeader
         {
-            Header = new ChunkHeader
-            {
-                ChunkType = (ushort)ChunkType.Raw,
-                ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
-                TotalSize = (uint)(fi.Length + SparseFormat.ChunkHeaderSize)
-            },
+            ChunkType = (ushort)ChunkType.Raw,
+            ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
+            TotalSize = (uint)(SparseFormat.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
+        };
+        sparseFile.AddChunkRaw(new SparseChunk(chunkHeader)
+        {
             DataProvider = new FileDataProvider(filePath, 0, fi.Length)
         });
         return sparseFile;
@@ -608,14 +625,14 @@ public static class SparseReader
     {
         var fi = new FileInfo(filePath);
         var sparseFile = new SparseFile(blockSize, (long)fi.Length, verbose) { Logger = logger };
-        sparseFile.AddChunkRaw(new SparseChunk
+        var chunkHeader = new ChunkHeader
         {
-            Header = new ChunkHeader
-            {
-                ChunkType = (ushort)ChunkType.Raw,
-                ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
-                TotalSize = (uint)(fi.Length + SparseFormat.ChunkHeaderSize)
-            },
+            ChunkType = (ushort)ChunkType.Raw,
+            ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
+            TotalSize = (uint)(SparseFormat.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
+        };
+        sparseFile.AddChunkRaw(new SparseChunk(chunkHeader)
+        {
             DataProvider = new FileDataProvider(filePath, 0, fi.Length)
         });
         return Task.FromResult(sparseFile);
@@ -676,6 +693,10 @@ public static class SparseReader
                 switch (chunkHeader.ChunkType)
                 {
                     case (ushort)ChunkType.Raw:
+                        if (dataSize != expectedRawSize)
+                        {
+                            throw new InvalidDataException($"Total size ({chunkHeader.TotalSize}) for RAW chunk {i} does not match expected data size ({expectedRawSize})");
+                        }
                         var rawData = new byte[dataSize];
                         stream.ReadExactly(rawData, 0, (int)dataSize);
                         if (validateCrc)
@@ -687,6 +708,10 @@ public static class SparseReader
                         currentBlockStart += chunkHeader.ChunkSize;
                         break;
                     case (ushort)ChunkType.Fill:
+                        if (dataSize != 4)
+                        {
+                            throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} must be 4 bytes");
+                        }
                         var fillData = new byte[4];
                         stream.ReadExactly(fillData, 0, 4);
                         var fillValue = BinaryPrimitives.ReadUInt32LittleEndian(fillData);
@@ -697,12 +722,12 @@ public static class SparseReader
                         chunk.FillValue = fillValue;
                         sparseFile.AddChunkRaw(chunk);
                         currentBlockStart += chunkHeader.ChunkSize;
-                        if (dataSize > 4)
-                        {
-                            stream.Seek(dataSize - 4, SeekOrigin.Current);
-                        }
                         break;
                     case (ushort)ChunkType.DontCare:
+                        if (dataSize != 0)
+                        {
+                            throw new InvalidDataException($"Data size ({dataSize}) for DONT_CARE chunk {i} must be 0");
+                        }
                         if (validateCrc)
                         {
                             checksum = Crc32.UpdateZero(checksum, expectedRawSize);
@@ -711,6 +736,10 @@ public static class SparseReader
                         currentBlockStart += chunkHeader.ChunkSize;
                         break;
                     case (ushort)ChunkType.Crc32:
+                        if (dataSize != 4)
+                        {
+                            throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
+                        }
                         var crcFileData = new byte[4];
                         stream.ReadExactly(crcFileData, 0, 4);
                         if (validateCrc)
@@ -824,8 +853,8 @@ public static class SparseReader
     private static bool IsZeroBlock(byte[] buffer, int length)
     {
         if (length == 0) return true;
-        var span = buffer.AsSpan(0, length);
-        var ulongSpan = MemoryMarshal.Cast<byte, ulong>(span);
+        Span<byte> span = buffer.AsSpan(0, length);
+        Span<ulong> ulongSpan = MemoryMarshal.Cast<byte, ulong>(span);
         foreach (var v in ulongSpan) if (v != 0) return false;
         for (var i = ulongSpan.Length * 8; i < length; i++) if (buffer[i] != 0) return false;
         return true;
@@ -836,7 +865,7 @@ public static class SparseReader
         fillValue = 0;
         if (buffer.Length < 4) return false;
         var pattern = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
-        var uintSpan = MemoryMarshal.Cast<byte, uint>(buffer.AsSpan());
+        Span<uint> uintSpan = MemoryMarshal.Cast<byte, uint>(buffer.AsSpan());
         foreach (var v in uintSpan) if (v != pattern) return false;
         for (var i = uintSpan.Length * 4; i < buffer.Length; i++) if (buffer[i] != (byte)(pattern >> (i % 4 * 8))) return false;
         fillValue = pattern;

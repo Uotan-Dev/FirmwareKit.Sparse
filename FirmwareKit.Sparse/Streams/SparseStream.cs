@@ -47,11 +47,14 @@ public class SparseStream : Stream
     /// <inheritdoc/>
     public override void Flush() { }
 
+
+#if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
     /// <inheritdoc/>
     public override int Read(byte[] buffer, int offset, int count)
     {
         return Read(buffer.AsSpan(offset, count));
     }
+#endif
 
 #if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
     /// <inheritdoc/>
@@ -68,7 +71,7 @@ public class SparseStream : Stream
 
         while (totalRead < toRead)
         {
-            var (chunk, startBlock) = FindChunkAtOffset(_position);
+            (SparseChunk? chunk, uint startBlock) = FindChunkAtOffset(_position);
             int currentReadSize;
 
             if (chunk == null)
@@ -118,7 +121,7 @@ public class SparseStream : Stream
 
         while (totalRead < toRead)
         {
-            var (chunk, startBlock) = FindChunkAtOffset(_position);
+            (SparseChunk? chunk, uint startBlock) = FindChunkAtOffset(_position);
             int currentReadSize;
 
             if (chunk == null)
@@ -210,7 +213,7 @@ public class SparseStream : Stream
         while (low <= high)
         {
             var mid = low + ((high - low) / 2);
-            var (startBlock, endBlock, chunkIndex) = _chunkLookup[mid];
+            (uint startBlock, uint endBlock, int chunkIndex) = _chunkLookup[mid];
 
             if (targetBlock >= startBlock && targetBlock < endBlock)
             {
@@ -228,6 +231,20 @@ public class SparseStream : Stream
         }
 
         return (null, 0);
+    }
+
+    private uint GetNextChunkBlock(long offset)
+    {
+        var targetBlock = (uint)(offset / _sparseFile.Header.BlockSize);
+        for (int i = 0; i < _chunkLookup.Length; i++)
+        {
+            if (_chunkLookup[i].StartBlock > targetBlock)
+            {
+                return _chunkLookup[i].StartBlock;
+            }
+        }
+
+        return _sparseFile.Header.TotalBlocks;
     }
 
     /// <inheritdoc/>

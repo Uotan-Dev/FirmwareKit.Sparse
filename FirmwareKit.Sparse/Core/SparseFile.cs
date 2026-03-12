@@ -49,9 +49,40 @@ public class SparseFile : IDisposable
                 return 0;
             }
             // Optimization: Assume chunks are added in order. If not, fallback to Max for correctness.
-            var last = _chunks[_chunks.Count - 1];
+            SparseChunk last = _chunks[_chunks.Count - 1];
             return last.StartBlock + last.Header.ChunkSize;
         }
+    }
+
+    /// <summary>
+    /// Counts how many chunks would be written when producing a sparse image.
+    /// This mirrors the behaviour of the native <c>sparse_count_chunks</c> helper
+    /// by accounting for implicit skip (DONT_CARE) chunks when there are gaps
+    /// between existing chunks, plus a trailing skip if the file is shorter than
+    /// <see cref="Header.TotalBlocks"/>.
+    /// </summary>
+    public uint CountChunks()
+    {
+        uint chunks = 0;
+        uint lastBlock = 0;
+
+        foreach (SparseChunk chunk in _chunks.OrderBy(c => c.StartBlock))
+        {
+            if (chunk.StartBlock > lastBlock)
+            {
+                // gap between previous end and this start -> skip chunk
+                chunks++;
+            }
+            chunks++;
+            lastBlock = chunk.StartBlock + chunk.Header.ChunkSize;
+        }
+
+        if (lastBlock < Header.TotalBlocks)
+        {
+            chunks++;
+        }
+
+        return chunks;
     }
 
     /// <summary>
@@ -209,14 +240,14 @@ public class SparseFile : IDisposable
     /// Gets a stream for exporting a specific range of blocks from the sparse file.
     /// </summary>
     public Stream GetExportStream(uint startBlock, uint blockCount, bool includeCrc = false)
-        => new SparseImageStream(this, startBlock, blockCount, includeCrc);
+        => new SparseImageStream(this, startBlock, blockCount, includeCrc, fullRange: false);
 
     /// <summary>
     /// Gets a collection of streams representing the resparsed (split) image files.
     /// </summary>
     public IEnumerable<Stream> GetResparsedStreams(long maxFileSize, bool includeCrc = false)
     {
-        foreach (var file in Resparse(maxFileSize))
+        foreach (SparseFile file in Resparse(maxFileSize))
         {
             yield return new SparseImageStream(file, 0, file.Header.TotalBlocks, includeCrc, false, true);
         }
@@ -234,7 +265,7 @@ public class SparseFile : IDisposable
 
         long length = SparseFormat.SparseHeaderSize;
         uint totalChunkBlocks = 0;
-        foreach (var chunk in _chunks)
+        foreach (SparseChunk chunk in _chunks)
         {
             length += chunk.Header.TotalSize;
             totalChunkBlocks += chunk.Header.ChunkSize;
@@ -422,7 +453,7 @@ public class SparseFile : IDisposable
     public void ForEachChunk(Action<SparseChunk, uint, uint> action)
     {
         uint currentBlock = 0;
-        foreach (var chunk in _chunks)
+        foreach (SparseChunk chunk in _chunks)
         {
             if (chunk.Header.ChunkType is (ushort)ChunkType.Raw or (ushort)ChunkType.Fill)
             {
@@ -438,7 +469,7 @@ public class SparseFile : IDisposable
     public void ForEachChunkAll(Action<SparseChunk, uint, uint> action)
     {
         uint currentBlock = 0;
-        foreach (var chunk in _chunks)
+        foreach (SparseChunk chunk in _chunks)
         {
             action(chunk, currentBlock, chunk.Header.ChunkSize);
             currentBlock += chunk.Header.ChunkSize;
@@ -454,7 +485,7 @@ public class SparseFile : IDisposable
         // but for many chunks we can at least optimize the linear search.
         for (int i = 0; i < _chunks.Count; i++)
         {
-            var chunk = _chunks[i];
+            SparseChunk chunk = _chunks[i];
             var chunkEnd = chunk.StartBlock + chunk.Header.ChunkSize;
             if (start < chunkEnd && end > chunk.StartBlock)
             {
@@ -520,7 +551,7 @@ public class SparseFile : IDisposable
     /// </summary>
     public void Dispose()
     {
-        foreach (var chunk in _chunks) chunk.Dispose();
+        foreach (SparseChunk chunk in _chunks) chunk.Dispose();
         _chunks.Clear();
     }
 }

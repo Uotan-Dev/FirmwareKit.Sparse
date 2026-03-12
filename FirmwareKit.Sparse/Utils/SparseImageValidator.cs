@@ -14,7 +14,7 @@ public static class SparseImageValidator
     {
         try
         {
-            using var sparseFile = SparseFile.FromImageFile(filePath);
+            using var sparseFile = SparseFile.FromImageFile(filePath, validateCrc: true);
 
             var result = new ValidationResult
             {
@@ -33,13 +33,13 @@ public static class SparseImageValidator
 
             uint totalBlocks = 0;
 
-            for (uint i = 0; i < sparseFile.Header.TotalChunks; i++)
+            for (var i = 0; i < sparseFile.Chunks.Count; i++)
             {
-                var chunk = sparseFile.Chunks[(int)i];
+                SparseChunk chunk = sparseFile.Chunks[i];
 
                 var chunkInfo = new ChunkInfo
                 {
-                    Index = i,
+                    Index = (uint)i,
                     ChunkType = chunk.Header.ChunkType,
                     ChunkSize = chunk.Header.ChunkSize,
                     TotalSize = chunk.Header.TotalSize
@@ -71,15 +71,15 @@ public static class SparseImageValidator
     {
         try
         {
-            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-            Span<byte> magicBytes = stackalloc byte[4];
-            if (stream.Read(magicBytes) != 4)
+            using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            Span<byte> headerBytes = stackalloc byte[SparseFormat.SparseHeaderSize];
+            if (stream.Read(headerBytes) != SparseFormat.SparseHeaderSize)
             {
                 return false;
             }
 
-            var magic = BinaryPrimitives.ReadUInt32LittleEndian(magicBytes);
-            return magic == SparseFormat.SparseHeaderMagic;
+            var header = SparseHeader.FromBytes(headerBytes);
+            return header.IsValid();
         }
         catch
         {
@@ -101,7 +101,7 @@ public static class SparseImageValidator
                 return new SparseImageInfo { Success = false, ErrorMessage = "Not a valid sparse image file", FilePath = filePath };
             }
 
-            var header = SparseFile.PeekHeader(filePath);
+            SparseHeader header = SparseFile.PeekHeader(filePath);
             var fileInfo = new FileInfo(filePath);
             var uncompressedSize = (long)header.TotalBlocks * header.BlockSize;
             var compressionRatio = 100.0 - ((double)fileInfo.Length / uncompressedSize * 100.0);

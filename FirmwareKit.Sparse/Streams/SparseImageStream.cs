@@ -80,7 +80,7 @@ public class SparseImageStream : Stream
 
         for (var i = 0; i < _mappedChunks.Count; i++)
         {
-            var chunk = _mappedChunks[i];
+            SparseChunk chunk = _mappedChunks[i];
             var chunkHeaderBytes = chunk.Header.ToBytes();
 
             _sections.Add(new Section
@@ -148,7 +148,7 @@ public class SparseImageStream : Stream
 
         try
         {
-            foreach (var chunk in _mappedChunks)
+            foreach (SparseChunk chunk in _mappedChunks)
             {
                 var totalBytes = (long)chunk.Header.ChunkSize * _blockSize;
                 switch (chunk.Header.ChunkType)
@@ -205,7 +205,7 @@ public class SparseImageStream : Stream
         uint currentSrcBlock = 0;
         var endBlock = startBlock + blockCount;
 
-        foreach (var chunk in source.Chunks)
+        foreach (SparseChunk chunk in source.Chunks)
         {
             var chunkEnd = currentSrcBlock + chunk.Header.ChunkSize;
 
@@ -215,7 +215,7 @@ public class SparseImageStream : Stream
                 var intersectEnd = Math.Min(endBlock, chunkEnd);
                 var intersectCount = intersectEnd - intersectStart;
 
-                var mappedChunk = CloneChunkSlice(chunk, intersectStart - currentSrcBlock, intersectCount);
+                SparseChunk mappedChunk = CloneChunkSlice(chunk, intersectStart - currentSrcBlock, intersectCount);
                 _mappedChunks.Add(mappedChunk);
             }
 
@@ -236,7 +236,7 @@ public class SparseImageStream : Stream
 
     private SparseChunk CloneChunkSlice(SparseChunk original, uint offsetInBlocks, uint count)
     {
-        var header = original.Header with
+        ChunkHeader header = original.Header with
         {
             ChunkSize = count,
             TotalSize = original.Header.ChunkType == (ushort)ChunkType.Raw
@@ -262,7 +262,7 @@ public class SparseImageStream : Stream
         var totalRead = 0;
         while (totalRead < count && _position < _totalByteLength)
         {
-            var section = FindSectionAtOffset(_position);
+            Section section = FindSectionAtOffset(_position);
             var offsetInSection = _position - section.StartByteOffset;
             var toRead = (int)Math.Min(count - totalRead, section.Length - offsetInSection);
 
@@ -276,10 +276,26 @@ public class SparseImageStream : Stream
                     break;
 
                 case SectionType.ChunkData:
-                    var chunk = _mappedChunks[section.ChunkIndex];
+                    SparseChunk chunk = _mappedChunks[section.ChunkIndex];
                     if (chunk.Header.ChunkType == (ushort)ChunkType.Raw)
                     {
-                        chunk.DataProvider?.Read(offsetInSection, buffer, offset + totalRead, toRead);
+                        if (chunk.DataProvider == null)
+                        {
+                            Array.Clear(buffer, offset + totalRead, toRead);
+                            break;
+                        }
+
+                        var readTotal = 0;
+                        while (readTotal < toRead)
+                        {
+                            var read = chunk.DataProvider.Read(offsetInSection + readTotal, buffer, offset + totalRead + readTotal, toRead - readTotal);
+                            if (read <= 0)
+                            {
+                                throw new EndOfStreamException($"Sparse RAW chunk short read at image offset {_position}: {readTotal}/{toRead}");
+                            }
+
+                            readTotal += read;
+                        }
                     }
                     else if (chunk.Header.ChunkType == (ushort)ChunkType.Fill)
                     {
@@ -310,7 +326,7 @@ public class SparseImageStream : Stream
         while (low <= high)
         {
             var mid = low + ((high - low) / 2);
-            var sec = _sections[mid];
+            Section sec = _sections[mid];
             if (pos >= sec.StartByteOffset && pos < sec.StartByteOffset + sec.Length)
             {
                 return sec;

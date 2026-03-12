@@ -32,7 +32,7 @@ public static class SparseImageUtils
 
         if (result.IsSparseImage)
         {
-            var header = SparseFile.PeekHeader(filePath);
+            SparseHeader header = SparseFile.PeekHeader(filePath);
             result = result with
             {
                 SparseInfo = new SparseFileInfo
@@ -200,7 +200,7 @@ public static class SparseImageUtils
             using var inputStream = new FileStream(inputPath, FileMode.Open, FileAccess.Read);
             using var outputStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
 
-            using var sparseFile = SparseFile.FromStream(inputStream);
+            using var sparseFile = SparseFile.FromStream(inputStream, validateCrc: true);
             var blockSize = sparseFile.Header.BlockSize;
             var startBlock = (uint)(partitionOffset / blockSize);
             var offsetInBlock = partitionOffset % blockSize;
@@ -209,7 +209,7 @@ public static class SparseImageUtils
             var dataExtracted = false;
             long totalBytesExtracted = 0;
 
-            foreach (var chunk in sparseFile.Chunks)
+            foreach (SparseChunk chunk in sparseFile.Chunks)
             {
                 var chunkEndBlock = currentBlock + chunk.Header.ChunkSize;
                 if (chunkEndBlock > startBlock)
@@ -371,8 +371,8 @@ public static class SparseImageUtils
             }
 
             using var stream = new FileStream(sparseImagePath, FileMode.Open, FileAccess.Read);
-            using var sparseFile = SparseFile.FromStream(stream);
-            var header = sparseFile.Header;
+            using var sparseFile = SparseFile.FromStream(stream, validateCrc: true);
+            SparseHeader header = sparseFile.Header;
 
             var blockSize = header.BlockSize;
             var startBlockNumber = partitionOffset / blockSize;
@@ -390,7 +390,7 @@ public static class SparseImageUtils
             var fileOffset = 0L;
             var foundValidData = false;
 
-            foreach (var chunk in sparseFile.Chunks)
+            foreach (SparseChunk chunk in sparseFile.Chunks)
             {
                 var chunkStartBlock = currentBlockNumber;
                 var chunkEndBlock = currentBlockNumber + chunk.Header.ChunkSize;
