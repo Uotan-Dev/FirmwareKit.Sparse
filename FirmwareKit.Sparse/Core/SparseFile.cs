@@ -55,37 +55,6 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Counts how many chunks would be written when producing a sparse image.
-    /// This mirrors the behaviour of the native <c>sparse_count_chunks</c> helper
-    /// by accounting for implicit skip (DONT_CARE) chunks when there are gaps
-    /// between existing chunks, plus a trailing skip if the file is shorter than
-    /// <see cref="Header.TotalBlocks"/>.
-    /// </summary>
-    public uint CountChunks()
-    {
-        uint chunks = 0;
-        uint lastBlock = 0;
-
-        foreach (SparseChunk chunk in _chunks.OrderBy(c => c.StartBlock))
-        {
-            if (chunk.StartBlock > lastBlock)
-            {
-                // gap between previous end and this start -> skip chunk
-                chunks++;
-            }
-            chunks++;
-            lastBlock = chunk.StartBlock + chunk.Header.ChunkSize;
-        }
-
-        if (lastBlock < Header.TotalBlocks)
-        {
-            chunks++;
-        }
-
-        return chunks;
-    }
-
-    /// <summary>
     /// Initializes a new instance of the <see cref="SparseFile"/> class with default settings.
     /// </summary>
     public SparseFile()
