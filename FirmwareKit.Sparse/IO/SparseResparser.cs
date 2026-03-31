@@ -26,7 +26,7 @@ public static class SparseResparser
     /// </summary>
     public static IEnumerable<SparseFile> Resparse(SparseFile sparseFile, long maxFileSize)
     {
-        long overhead = SparseFormat.SparseHeaderSize + (2 * SparseFormat.ChunkHeaderSize) + 4;
+        long overhead = SparseFormat.SparseHeaderSize + SparseFormat.ChunkHeaderSize;
 
         if (maxFileSize <= overhead)
         {
@@ -77,7 +77,7 @@ public static class SparseResparser
 
                 long currentFileLenWithHeader = fileLen + SparseFormat.ChunkHeaderSize;
                 long availableForData = fileLimit - currentFileLenWithHeader;
-                bool canSplit = canSplitData && (fileCurrentBlock == startBlock || availableForData > (fileLimit / 8));
+                bool canSplit = canSplitData && (fileCurrentBlock == startBlock || availableForData > (maxFileSize / 8));
 
                 if (canSplit)
                 {

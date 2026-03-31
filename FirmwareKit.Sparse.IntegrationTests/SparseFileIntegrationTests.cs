@@ -258,7 +258,8 @@ public class SparseFileIntegrationTests
         Assert.Single(imported.Chunks);
 
         var readBack = new byte[BlockSize];
-        imported.Chunks[0].DataProvider.Read(0, readBack, 0, readBack.Length);
+        var provider = Assert.IsAssignableFrom<FirmwareKit.Sparse.DataProviders.ISparseDataProvider>(imported.Chunks[0].DataProvider);
+        provider.Read(0, readBack, 0, readBack.Length);
         Assert.Equal(data, readBack);
     }
 
@@ -400,6 +401,128 @@ public class SparseFileIntegrationTests
                 File.Delete(tempFile);
             }
         }
+    }
+
+    [Fact]
+    public void FromBuffer_WhenFillChunkHasExtraPayload_ThrowsInvalidDataException()
+    {
+        using var sparseFile = new SparseFile(BlockSize, BlockSize);
+        sparseFile.AddFillChunk(0x01020304, BlockSize);
+
+        using var output = new MemoryStream();
+        sparseFile.WriteToStream(output, sparse: true, includeCrc: false);
+
+        var bytes = output.ToArray().ToList();
+        var chunkHeaderOffset = SparseFormat.SparseHeaderSize;
+        BinaryPrimitives.WriteUInt32LittleEndian(CollectionsMarshal.AsSpan(bytes).Slice(chunkHeaderOffset + 8, 4), SparseFormat.ChunkHeaderSize + 8u);
+        bytes.AddRange(new byte[] { 0x55, 0x66, 0x77, 0x88 });
+
+        Assert.Throws<InvalidDataException>(() => SparseFile.FromBuffer(bytes.ToArray(), validateCrc: false));
+    }
+
+    [Fact]
+    public void FromBuffer_WhenChunkTotalSizeSmallerThanHeader_ThrowsInvalidDataException()
+    {
+        using var sparseFile = new SparseFile(BlockSize, BlockSize);
+        sparseFile.AddRawChunk(new byte[BlockSize]);
+
+        using var output = new MemoryStream();
+        sparseFile.WriteToStream(output, sparse: true, includeCrc: false);
+
+        var bytes = output.ToArray();
+        var chunkHeaderOffset = SparseFormat.SparseHeaderSize;
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(chunkHeaderOffset + 8, 4), SparseFormat.ChunkHeaderSize - 1u);
+
+        Assert.Throws<InvalidDataException>(() => SparseFile.FromBuffer(bytes, validateCrc: false));
+    }
+
+    [Fact]
+    public void FromBuffer_WhenMajorVersionUnsupported_ThrowsInvalidDataException()
+    {
+        using var sparseFile = new SparseFile(BlockSize, BlockSize);
+        sparseFile.AddRawChunk(new byte[BlockSize]);
+
+        using var output = new MemoryStream();
+        sparseFile.WriteToStream(output, sparse: true, includeCrc: false);
+
+        var bytes = output.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(4, 2), 2);
+
+        Assert.Throws<InvalidDataException>(() => SparseFile.FromBuffer(bytes, validateCrc: false));
+    }
+
+    [Fact]
+    public void FromStream_WhenExtendedFileHeaderOnNonSeekable_ThrowsInvalidDataException()
+    {
+        using var sparseFile = new SparseFile(BlockSize, BlockSize);
+        sparseFile.AddRawChunk(new byte[BlockSize]);
+
+        using var output = new MemoryStream();
+        sparseFile.WriteToStream(output, sparse: true, includeCrc: false);
+
+        var bytes = output.ToArray();
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(8, 2), SparseFormat.SparseHeaderSize + 4);
+
+        using var baseStream = new MemoryStream(bytes);
+        using var nonSeekable = new NonSeekableReadStream(baseStream);
+
+        Assert.Throws<InvalidDataException>(() => SparseFile.FromStream(nonSeekable, validateCrc: false));
+    }
+
+    [Fact]
+    public void FromStream_WhenExtendedChunkHeaderOnNonSeekable_ThrowsInvalidDataException()
+    {
+        using var sparseFile = new SparseFile(BlockSize, BlockSize);
+        sparseFile.AddRawChunk(new byte[BlockSize]);
+
+        using var output = new MemoryStream();
+        sparseFile.WriteToStream(output, sparse: true, includeCrc: false);
+
+        var bytes = output.ToArray();
+        var chunkHeaderOffset = SparseFormat.SparseHeaderSize;
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(10, 2), SparseFormat.ChunkHeaderSize + 4);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(chunkHeaderOffset + 8, 4), SparseFormat.ChunkHeaderSize + 4 + BlockSize);
+
+        using var baseStream = new MemoryStream(bytes);
+        using var nonSeekable = new NonSeekableReadStream(baseStream);
+
+        Assert.Throws<InvalidDataException>(() => SparseFile.FromStream(nonSeekable, validateCrc: false));
+    }
+
+    [Fact]
+    public void Resparse_AllPartSparseLengths_DoNotExceedMaxFileSize()
+    {
+        using var sparseFile = new SparseFile(BlockSize, BlockSize * 64);
+        for (var i = 0; i < 8; i++)
+        {
+            sparseFile.AddRawChunk(new byte[BlockSize * 8]);
+        }
+
+        var maxFileSize = (long)SparseFormat.SparseHeaderSize + SparseFormat.ChunkHeaderSize + (BlockSize * 10);
+        var parts = sparseFile.Resparse(maxFileSize).ToList();
+        Assert.True(parts.Count > 1);
+
+        using var mergedRaw = new MemoryStream();
+        foreach (var part in parts)
+        {
+            using var sparseOut = new MemoryStream();
+            part.WriteToStream(sparseOut, sparse: true, includeCrc: false);
+            Assert.True(sparseOut.Length <= maxFileSize, $"Part length {sparseOut.Length} exceeds max {maxFileSize}");
+
+            part.WriteRawToStream(mergedRaw);
+        }
+
+        Assert.Equal((long)64 * BlockSize, mergedRaw.Length);
+    }
+
+    [Fact]
+    public void Resparse_WhenSingleRawChunkCannotFit_ThrowsInvalidOperationException()
+    {
+        using var sparseFile = new SparseFile(BlockSize, BlockSize);
+        sparseFile.AddRawChunk(new byte[BlockSize]);
+
+        var tooSmall = (long)SparseFormat.SparseHeaderSize + SparseFormat.ChunkHeaderSize + BlockSize - 1;
+        Assert.Throws<InvalidOperationException>(() => sparseFile.Resparse(tooSmall).ToList());
     }
 
     private sealed class NonSeekableReadStream : Stream

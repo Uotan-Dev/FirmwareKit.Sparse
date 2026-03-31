@@ -75,9 +75,14 @@ public static class SparseReader
             throw new InvalidDataException("Invalid sparse header");
         }
 
-        if (sparseFile.Header.ChunkHeaderSize > SparseFormat.ChunkHeaderSize)
+        if (sparseFile.Header.FileHeaderSize > SparseFormat.SparseHeaderSize)
         {
-            stream.Seek(sparseFile.Header.ChunkHeaderSize - SparseFormat.ChunkHeaderSize, SeekOrigin.Current);
+            if (!stream.CanSeek)
+            {
+                throw new InvalidDataException("Stream must be seekable when sparse file header is extended.");
+            }
+
+            stream.Seek(sparseFile.Header.FileHeaderSize - SparseFormat.SparseHeaderSize, SeekOrigin.Current);
         }
 
         uint? checksum = validateCrc ? Crc32.Begin() : null;
@@ -101,6 +106,11 @@ public static class SparseReader
 
                 if (sparseFile.Header.ChunkHeaderSize > SparseFormat.ChunkHeaderSize)
                 {
+                    if (!stream.CanSeek)
+                    {
+                        throw new InvalidDataException("Stream must be seekable when chunk headers are extended.");
+                    }
+
                     stream.Seek(sparseFile.Header.ChunkHeaderSize - SparseFormat.ChunkHeaderSize, SeekOrigin.Current);
                 }
 
@@ -109,6 +119,11 @@ public static class SparseReader
                 if (!chunkHeader.IsValid())
                 {
                     throw new InvalidDataException($"Invalid chunk header for chunk {i}: Type 0x{chunkHeader.ChunkType:X4}");
+                }
+
+                if (chunkHeader.TotalSize < sparseFile.Header.ChunkHeaderSize)
+                {
+                    throw new InvalidDataException($"Total size ({chunkHeader.TotalSize}) for chunk {i} is smaller than chunk header size ({sparseFile.Header.ChunkHeaderSize})");
                 }
 
                 var dataSize = (long)chunkHeader.TotalSize - sparseFile.Header.ChunkHeaderSize;
@@ -160,9 +175,9 @@ public static class SparseReader
                         break;
 
                     case (ushort)ChunkType.Fill:
-                        if (dataSize < 4)
+                        if (dataSize != 4)
                         {
-                            throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} is less than 4 bytes");
+                            throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} must be 4");
                         }
 
                         stream.ReadExactly(buffer4);
@@ -174,10 +189,6 @@ public static class SparseReader
                             checksum = Crc32.UpdateRepeated(checksum.Value, chunk.FillValue, expectedRawSize);
                         }
 
-                        if (dataSize > 4)
-                        {
-                            stream.Seek(dataSize - 4, SeekOrigin.Current);
-                        }
                         break;
 
                     case (ushort)ChunkType.DontCare:
@@ -291,6 +302,11 @@ public static class SparseReader
 
         if (sparseFile.Header.FileHeaderSize > SparseFormat.SparseHeaderSize)
         {
+            if (!stream.CanSeek)
+            {
+                throw new InvalidDataException("Stream must be seekable when sparse file header is extended.");
+            }
+
             stream.Seek(sparseFile.Header.FileHeaderSize - SparseFormat.SparseHeaderSize, SeekOrigin.Current);
         }
 
@@ -316,6 +332,11 @@ public static class SparseReader
 
                 if (sparseFile.Header.ChunkHeaderSize > SparseFormat.ChunkHeaderSize)
                 {
+                    if (!stream.CanSeek)
+                    {
+                        throw new InvalidDataException("Stream must be seekable when chunk headers are extended.");
+                    }
+
                     stream.Seek(sparseFile.Header.ChunkHeaderSize - SparseFormat.ChunkHeaderSize, SeekOrigin.Current);
                 }
 
@@ -324,6 +345,11 @@ public static class SparseReader
                 if (!chunkHeader.IsValid())
                 {
                     throw new InvalidDataException($"Invalid chunk header for chunk {i}: Type 0x{chunkHeader.ChunkType:X4}");
+                }
+
+                if (chunkHeader.TotalSize < sparseFile.Header.ChunkHeaderSize)
+                {
+                    throw new InvalidDataException($"Total size ({chunkHeader.TotalSize}) for chunk {i} is smaller than chunk header size ({sparseFile.Header.ChunkHeaderSize})");
                 }
 
                 var dataSize = (long)chunkHeader.TotalSize - sparseFile.Header.ChunkHeaderSize;
@@ -375,9 +401,9 @@ public static class SparseReader
                         break;
 
                     case (ushort)ChunkType.Fill:
-                        if (dataSize < 4)
+                        if (dataSize != 4)
                         {
-                            throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} is less than 4 bytes");
+                            throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} must be 4");
                         }
 
                         await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken);
@@ -389,10 +415,6 @@ public static class SparseReader
                             checksum = Crc32.UpdateRepeated(checksum.Value, chunk.FillValue, expectedRawSize);
                         }
 
-                        if (dataSize > 4)
-                        {
-                            stream.Seek(dataSize - 4, SeekOrigin.Current);
-                        }
                         break;
 
                     case (ushort)ChunkType.DontCare:
