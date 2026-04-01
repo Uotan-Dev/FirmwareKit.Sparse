@@ -2,6 +2,7 @@ namespace FirmwareKit.Sparse.IO;
 
 using FirmwareKit.Sparse.Core;
 using FirmwareKit.Sparse.Models;
+using FirmwareKit.Sparse.DataProviders;
 using System.Collections.Generic;
 
 /// <summary>
@@ -26,7 +27,8 @@ public static class SparseResparser
     /// </summary>
     public static IEnumerable<SparseFile> Resparse(SparseFile sparseFile, long maxFileSize)
     {
-        long overhead = SparseFormat.SparseHeaderSize + SparseFormat.ChunkHeaderSize;
+        // overhead: sparse file header + potential trailing skip chunk header + crc chunk header + crc data (4 bytes)
+        long overhead = sparseFile.Header.FileHeaderSize + (2 * sparseFile.Header.ChunkHeaderSize) + 4;
 
         if (maxFileSize <= overhead)
         {
@@ -41,7 +43,7 @@ public static class SparseResparser
             emptyFile.Header = emptyFile.Header with { TotalBlocks = sparseFile.Header.TotalBlocks };
             if (sparseFile.Header.TotalBlocks > 0)
             {
-                emptyFile.AddChunkRaw(CreateDontCareChunk(sparseFile.Header.TotalBlocks));
+                emptyFile.AddChunkRaw(CreateDontCareChunk(sparseFile.Header.TotalBlocks, emptyFile.Header.ChunkHeaderSize));
             }
             FinishCurrentResparseFile(emptyFile);
             yield return emptyFile;
@@ -52,6 +54,7 @@ public static class SparseResparser
         currentFile.Header = currentFile.Header with { TotalBlocks = sparseFile.Header.TotalBlocks };
         long fileLen = 0;              // bytes already consumed in this sparse file (including headers)
         uint fileCurrentBlock = 0;     // number of blocks written to currentFile (including dont‑care gaps)
+        bool anyChunkAdded = false;   // whether a non-DontCare chunk was added to currentFile
         ResparseEntry? pending = enumerator.Current;
         while (pending != null)
         {
@@ -62,8 +65,9 @@ public static class SparseResparser
             if (startBlock > fileCurrentBlock)
             {
                 uint gap = startBlock - fileCurrentBlock;
-                currentFile.AddChunkRaw(CreateDontCareChunk(gap));
-                fileLen += SparseFormat.ChunkHeaderSize;
+                var gapChunk = CreateDontCareChunk(gap, currentFile.Header.ChunkHeaderSize, fileCurrentBlock);
+                currentFile.AddChunkRaw(gapChunk);
+                fileLen += currentFile.Header.ChunkHeaderSize;
                 fileCurrentBlock = startBlock;
             }
 
@@ -72,12 +76,17 @@ public static class SparseResparser
             if (fileLen + chunkSize > fileLimit)
             {
                 // Can we fit part of this chunk into the current file?
-                // We only try to split Raw chunks (Fill is 4 bytes, usually not worth splitting)
-                bool canSplitData = entry.Chunk.Header.ChunkType == (ushort)ChunkType.Raw;
+                // Allow splitting of Raw and Fill chunks to match the C implementation
+                bool canSplitData = entry.Chunk.Header.ChunkType == (ushort)ChunkType.Raw
+                                    || entry.Chunk.Header.ChunkType == (ushort)ChunkType.Fill;
 
-                long currentFileLenWithHeader = fileLen + SparseFormat.ChunkHeaderSize;
+                long currentFileLenWithHeader = fileLen + currentFile.Header.ChunkHeaderSize;
                 long availableForData = fileLimit - currentFileLenWithHeader;
-                bool canSplit = canSplitData && (fileCurrentBlock == startBlock || availableForData > (maxFileSize / 8));
+                // debug logging removed
+                // follow the C implementation: allow split if this would be the first
+                // non-skip chunk in the file (no previous backed block moved), or
+                // if we have > 1/8th of the file available for payload.
+                bool canSplit = canSplitData && (!anyChunkAdded || availableForData > (fileLimit / 8));
 
                 if (canSplit)
                 {
@@ -88,19 +97,27 @@ public static class SparseResparser
                     if (blocksToTake > 0 && blocksToTake < entry.Chunk.Header.ChunkSize)
                     {
                         (SparseChunk? part1, SparseChunk? part2) = SplitChunkInternal(sparseFile, entry.Chunk, blocksToTake);
+                        // place first part in the current file at the original absolute start
+                        part1.StartBlock = startBlock;
                         currentFile.AddChunkRaw(part1);
+                        anyChunkAdded = true;
                         fileLen += GetSparseChunkSize(sparseFile, part1);
                         fileCurrentBlock += part1.Header.ChunkSize;
 
                         FinishCurrentResparseFile(currentFile);
+                        // preserve the parent's TotalBlocks so split files keep the full image size
+                        currentFile.Header = currentFile.Header with { TotalBlocks = sparseFile.Header.TotalBlocks };
                         yield return currentFile;
 
+                        // start a fresh file; next iteration will insert a leading DontCare
                         currentFile = CreateNewSparseForResparse(sparseFile);
                         currentFile.Header = currentFile.Header with { TotalBlocks = sparseFile.Header.TotalBlocks };
                         fileLen = 0;
-                        fileCurrentBlock = startBlock + part1.Header.ChunkSize;
+                        fileCurrentBlock = 0;
+                        anyChunkAdded = false;
 
-                        pending = new ResparseEntry(fileCurrentBlock, part2);
+                        // pending holds the absolute start of the remainder
+                        pending = new ResparseEntry(startBlock + part1.Header.ChunkSize, part2);
                         continue;
                     }
                 }
@@ -111,18 +128,24 @@ public static class SparseResparser
                 }
 
                 FinishCurrentResparseFile(currentFile);
+                currentFile.Header = currentFile.Header with { TotalBlocks = sparseFile.Header.TotalBlocks };
                 yield return currentFile;
                 currentFile = CreateNewSparseForResparse(sparseFile);
                 currentFile.Header = currentFile.Header with { TotalBlocks = sparseFile.Header.TotalBlocks };
                 fileLen = 0;
-                fileCurrentBlock = startBlock;
+                // start next file at logical 0; pending entry contains absolute start
+                fileCurrentBlock = 0;
+                anyChunkAdded = false;
                 pending = entry;
                 continue;
             }
 
-            currentFile.AddChunkRaw(entry.Chunk);
-            fileLen += chunkSize;
-            fileCurrentBlock += entry.Chunk.Header.ChunkSize;
+            // clone the chunk so we don't mutate the source SparseFile instances
+            var cloned = CloneChunkForResparse(entry.Chunk, startBlock);
+            currentFile.AddChunkRaw(cloned);
+            anyChunkAdded = true;
+            fileLen += GetSparseChunkSize(sparseFile, cloned);
+            fileCurrentBlock += cloned.Header.ChunkSize;
 
             if (enumerator.MoveNext())
             {
@@ -131,6 +154,7 @@ public static class SparseResparser
         }
 
         FinishCurrentResparseFile(currentFile);
+        currentFile.Header = currentFile.Header with { TotalBlocks = sparseFile.Header.TotalBlocks };
         yield return currentFile;
     }
 
@@ -141,18 +165,18 @@ public static class SparseResparser
 
         if (chunk.Header.ChunkType == (ushort)ChunkType.Raw)
         {
-            h1 = h1 with { TotalSize = (uint)(SparseFormat.ChunkHeaderSize + ((long)blocksToTake * sparseFile.Header.BlockSize)) };
-            h2 = h2 with { TotalSize = (uint)(SparseFormat.ChunkHeaderSize + ((long)h2.ChunkSize * sparseFile.Header.BlockSize)) };
+            h1 = h1 with { TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + ((long)blocksToTake * sparseFile.Header.BlockSize)) };
+            h2 = h2 with { TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + ((long)h2.ChunkSize * sparseFile.Header.BlockSize)) };
         }
         else if (chunk.Header.ChunkType == (ushort)ChunkType.Fill)
         {
-            h1 = h1 with { TotalSize = SparseFormat.ChunkHeaderSize + 4 };
-            h2 = h2 with { TotalSize = SparseFormat.ChunkHeaderSize + 4 };
+            h1 = h1 with { TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + 4) };
+            h2 = h2 with { TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + 4) };
         }
         else
         {
-            h1 = h1 with { TotalSize = SparseFormat.ChunkHeaderSize };
-            h2 = h2 with { TotalSize = SparseFormat.ChunkHeaderSize };
+            h1 = h1 with { TotalSize = (uint)sparseFile.Header.ChunkHeaderSize };
+            h2 = h2 with { TotalSize = (uint)sparseFile.Header.ChunkHeaderSize };
         }
 
         var part1 = new SparseChunk(h1);
@@ -237,21 +261,38 @@ public static class SparseResparser
     {
         return chunk.Header.ChunkType switch
         {
-            (ushort)ChunkType.Raw => SparseFormat.ChunkHeaderSize + ((long)chunk.Header.ChunkSize * sparseFile.Header.BlockSize),
-            (ushort)ChunkType.Fill => SparseFormat.ChunkHeaderSize + 4,
-            _ => SparseFormat.ChunkHeaderSize
+            (ushort)ChunkType.Raw => sparseFile.Header.ChunkHeaderSize + ((long)chunk.Header.ChunkSize * sparseFile.Header.BlockSize),
+            (ushort)ChunkType.Fill => sparseFile.Header.ChunkHeaderSize + 4,
+            _ => sparseFile.Header.ChunkHeaderSize
         };
     }
 
-    private static SparseChunk CreateDontCareChunk(uint blocks)
+    private static SparseChunk CreateDontCareChunk(uint blocks, ushort chunkHeaderSize, uint startBlock = 0)
     {
-        return new SparseChunk(new ChunkHeader
+        var chunk = new SparseChunk(new ChunkHeader
         {
             ChunkType = (ushort)ChunkType.DontCare,
             Reserved = 0,
             ChunkSize = blocks,
-            TotalSize = SparseFormat.ChunkHeaderSize
+            TotalSize = chunkHeaderSize
         });
+        chunk.StartBlock = startBlock;
+        return chunk;
+    }
+
+    private static SparseChunk CloneChunkForResparse(SparseChunk src, uint startBlock)
+    {
+        var clone = new SparseChunk(src.Header) { StartBlock = startBlock };
+        if (src.Header.ChunkType == (ushort)ChunkType.Raw && src.DataProvider != null)
+        {
+            clone.DataProvider = src.DataProvider.GetSubProvider(0, src.DataProvider.Length);
+        }
+        else if (src.Header.ChunkType == (ushort)ChunkType.Fill)
+        {
+            clone.FillValue = src.FillValue;
+        }
+
+        return clone;
     }
 
     private static SparseFile BuildResparseFile(SparseFile source, List<ResparseEntry> entries, int startIndex, int endIndex)
@@ -265,19 +306,24 @@ public static class SparseResparser
             ResparseEntry entry = entries[i];
             if (entry.StartBlock > currentBlock)
             {
-                file.AddChunkRaw(CreateDontCareChunk(entry.StartBlock - currentBlock));
+                var gap = entry.StartBlock - currentBlock;
+                file.AddChunkRaw(CreateDontCareChunk(gap, file.Header.ChunkHeaderSize, currentBlock));
             }
 
-            file.AddChunkRaw(entry.Chunk);
+            // clone chunk into this file and set its StartBlock to the absolute entry start
+            var c = CloneChunkForResparse(entry.Chunk, entry.StartBlock);
+            file.AddChunkRaw(c);
             currentBlock = entry.StartBlock + entry.Chunk.Header.ChunkSize;
         }
 
         if (currentBlock < source.Header.TotalBlocks)
         {
-            file.AddChunkRaw(CreateDontCareChunk(source.Header.TotalBlocks - currentBlock));
+            file.AddChunkRaw(CreateDontCareChunk(source.Header.TotalBlocks - currentBlock, file.Header.ChunkHeaderSize));
         }
 
         FinishCurrentResparseFile(file);
+        // keep the original source total blocks on the resparsed part
+        file.Header = file.Header with { TotalBlocks = source.Header.TotalBlocks };
         return file;
     }
 }

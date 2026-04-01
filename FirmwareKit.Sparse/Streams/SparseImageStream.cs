@@ -10,6 +10,7 @@ public class SparseImageStream : Stream
     private readonly List<Section> _sections = new List<Section>();
     private readonly long _totalByteLength;
     private readonly SparseFile? _ownedFile;
+    private readonly int _chunkHeaderSize;
     private long _position;
 
     private struct Section
@@ -44,6 +45,9 @@ public class SparseImageStream : Stream
         _blockSize = source.Header.BlockSize;
         _ownedFile = disposeSource ? source : null;
 
+        // Ensure chunk header size is available for CloneChunkSlice during mapping
+        _chunkHeaderSize = (int)source.Header.ChunkHeaderSize;
+
         MapChunks(source, startBlock, blockCount, fullRange);
 
         long currentByteOffset = 0;
@@ -61,13 +65,29 @@ public class SparseImageStream : Stream
             Magic = SparseFormat.SparseHeaderMagic,
             MajorVersion = source.Header.MajorVersion,
             MinorVersion = source.Header.MinorVersion,
-            FileHeaderSize = SparseFormat.SparseHeaderSize,
-            ChunkHeaderSize = SparseFormat.ChunkHeaderSize,
+            FileHeaderSize = source.Header.FileHeaderSize,
+            ChunkHeaderSize = source.Header.ChunkHeaderSize,
             BlockSize = _blockSize,
             TotalBlocks = fullRange ? source.Header.TotalBlocks : blockCount,
             TotalChunks = totalChunks,
             ImageChecksum = imageChecksum
         };
+        // _chunkHeaderSize was initialized from source.Header above
+
+        // Sanity-check: first print mapped chunk info for debugging
+        // sanity checks omitted in release
+
+        for (int i = 0; i < _mappedChunks.Count; i++)
+        {
+            var c = _mappedChunks[i];
+            long expected = c.Header.ChunkType == (ushort)ChunkType.Raw
+                ? (long)_chunkHeaderSize + ((long)c.Header.ChunkSize * _blockSize)
+                : c.Header.ChunkType == (ushort)ChunkType.Fill ? (long)_chunkHeaderSize + 4 : (long)_chunkHeaderSize;
+            if (c.Header.TotalSize != (uint)expected)
+            {
+                throw new InvalidOperationException($"Mapped chunk {i} TotalSize mismatch: actual={c.Header.TotalSize}, expected={expected}");
+            }
+        }
         var headerBytes = header.ToBytes();
         _sections.Add(new Section
         {
@@ -77,23 +97,32 @@ public class SparseImageStream : Stream
             StaticData = headerBytes
         });
         currentByteOffset += headerBytes.Length;
+        if (header.FileHeaderSize > headerBytes.Length)
+        {
+            var padLen = header.FileHeaderSize - headerBytes.Length;
+            _sections.Add(new Section { StartByteOffset = currentByteOffset, Length = padLen, Type = SectionType.SparseHeader, StaticData = new byte[padLen] });
+            currentByteOffset += padLen;
+        }
 
         for (var i = 0; i < _mappedChunks.Count; i++)
         {
             SparseChunk chunk = _mappedChunks[i];
             var chunkHeaderBytes = chunk.Header.ToBytes();
+            var chunkHeaderLen = header.ChunkHeaderSize;
+            var chunkHeaderBuf = new byte[chunkHeaderLen];
+            Array.Copy(chunkHeaderBytes, 0, chunkHeaderBuf, 0, chunkHeaderBytes.Length);
 
             _sections.Add(new Section
             {
                 StartByteOffset = currentByteOffset,
-                Length = SparseFormat.ChunkHeaderSize,
+                Length = chunkHeaderLen,
                 Type = SectionType.ChunkHeader,
                 ChunkIndex = i,
-                StaticData = chunkHeaderBytes
+                StaticData = chunkHeaderBuf
             });
-            currentByteOffset += SparseFormat.ChunkHeaderSize;
+            currentByteOffset += chunkHeaderLen;
 
-            var dataSize = (long)chunk.Header.TotalSize - SparseFormat.ChunkHeaderSize;
+            var dataSize = (long)chunk.Header.TotalSize - header.ChunkHeaderSize;
             if (dataSize > 0)
             {
                 _sections.Add(new Section
@@ -114,17 +143,19 @@ public class SparseImageStream : Stream
                 ChunkType = (ushort)ChunkType.Crc32,
                 Reserved = 0,
                 ChunkSize = 0,
-                TotalSize = SparseFormat.ChunkHeaderSize + 4
+                TotalSize = (uint)(header.ChunkHeaderSize + 4)
             };
             var crcHeaderBytes = crcHeader.ToBytes();
+            var crcHeaderBuf = new byte[header.ChunkHeaderSize];
+            Array.Copy(crcHeaderBytes, 0, crcHeaderBuf, 0, crcHeaderBytes.Length);
             _sections.Add(new Section
             {
                 StartByteOffset = currentByteOffset,
-                Length = crcHeaderBytes.Length,
+                Length = crcHeaderBuf.Length,
                 Type = SectionType.CrcHeader,
-                StaticData = crcHeaderBytes
+                StaticData = crcHeaderBuf
             });
-            currentByteOffset += crcHeaderBytes.Length;
+            currentByteOffset += crcHeaderBuf.Length;
 
             var crcBytes = new byte[4];
             BinaryPrimitives.WriteUInt32LittleEndian(crcBytes, imageChecksum);
@@ -198,7 +229,7 @@ public class SparseImageStream : Stream
             {
                 ChunkType = (ushort)ChunkType.DontCare,
                 ChunkSize = startBlock,
-                TotalSize = SparseFormat.ChunkHeaderSize
+                TotalSize = source.Header.ChunkHeaderSize
             }));
         }
 
@@ -215,6 +246,16 @@ public class SparseImageStream : Stream
                 var intersectEnd = Math.Min(endBlock, chunkEnd);
                 var intersectCount = intersectEnd - intersectStart;
 
+                // Validate source chunk header TotalSize before cloning
+                long srcExpected = chunk.Header.ChunkType == (ushort)ChunkType.Raw
+                    ? source.Header.ChunkHeaderSize + ((long)chunk.Header.ChunkSize * source.Header.BlockSize)
+                    : chunk.Header.ChunkType == (ushort)ChunkType.Fill ? source.Header.ChunkHeaderSize + 4 : source.Header.ChunkHeaderSize;
+                // debug: validated source chunk header matches expected
+                if (chunk.Header.TotalSize != (uint)srcExpected)
+                {
+                    throw new InvalidOperationException($"Source chunk TotalSize mismatch: Type=0x{chunk.Header.ChunkType:X4}, ChunkSize={chunk.Header.ChunkSize}, HeaderChunkSize={source.Header.ChunkHeaderSize}, BlockSize={source.Header.BlockSize}, TotalSize(actual)={chunk.Header.TotalSize}, expected={srcExpected}");
+                }
+
                 SparseChunk mappedChunk = CloneChunkSlice(chunk, intersectStart - currentSrcBlock, intersectCount);
                 _mappedChunks.Add(mappedChunk);
             }
@@ -229,7 +270,7 @@ public class SparseImageStream : Stream
             {
                 ChunkType = (ushort)ChunkType.DontCare,
                 ChunkSize = source.Header.TotalBlocks - endBlock,
-                TotalSize = SparseFormat.ChunkHeaderSize
+                TotalSize = source.Header.ChunkHeaderSize
             }));
         }
     }
@@ -240,8 +281,8 @@ public class SparseImageStream : Stream
         {
             ChunkSize = count,
             TotalSize = original.Header.ChunkType == (ushort)ChunkType.Raw
-                ? SparseFormat.ChunkHeaderSize + (count * _blockSize)
-                : original.Header.ChunkType == (ushort)ChunkType.Fill ? SparseFormat.ChunkHeaderSize + 4 : (uint)SparseFormat.ChunkHeaderSize
+                ? (uint)(_chunkHeaderSize + (count * _blockSize))
+                : original.Header.ChunkType == (ushort)ChunkType.Fill ? (uint)(_chunkHeaderSize + 4) : (uint)_chunkHeaderSize
         };
 
         var newChunk = new SparseChunk(header) { FillValue = original.FillValue };

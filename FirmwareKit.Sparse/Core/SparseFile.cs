@@ -33,6 +33,14 @@ public class SparseFile : IDisposable
     internal void AddChunkRaw(SparseChunk chunk) => _chunks.Add(chunk);
 
     /// <summary>
+    /// Removes the last chunk from the internal chunk list. Used by readers to normalize parsed files.
+    /// </summary>
+    internal void RemoveLastChunk()
+    {
+        if (_chunks.Count > 0) _chunks.RemoveAt(_chunks.Count - 1);
+    }
+
+    /// <summary>
     /// Gets or sets a value indicating whether verbose logging is enabled.
     /// </summary>
     public bool Verbose { get; set; } = false;
@@ -232,7 +240,7 @@ public class SparseFile : IDisposable
             return (long)Header.TotalBlocks * Header.BlockSize;
         }
 
-        long length = SparseFormat.SparseHeaderSize;
+        long length = Header.FileHeaderSize;
         uint totalChunkBlocks = 0;
         foreach (SparseChunk chunk in _chunks)
         {
@@ -242,12 +250,12 @@ public class SparseFile : IDisposable
 
         if (Header.TotalBlocks > totalChunkBlocks)
         {
-            length += SparseFormat.ChunkHeaderSize;
+            length += Header.ChunkHeaderSize;
         }
 
         if (includeCrc)
         {
-            length += SparseFormat.ChunkHeaderSize + 4;
+            length += Header.ChunkHeaderSize + 4;
         }
 
         return length;
@@ -279,8 +287,10 @@ public class SparseFile : IDisposable
             {
                 ChunkType = (ushort)ChunkType.Raw,
                 ChunkSize = chunkBlocks,
-                TotalSize = (uint)(SparseFormat.ChunkHeaderSize + ((long)chunkBlocks * blockSize))
+                TotalSize = (uint)(Header.ChunkHeaderSize + ((long)chunkBlocks * blockSize))
             };
+
+
 
             AddChunkSorted(new SparseChunk(chunkHeader)
             {
@@ -319,8 +329,10 @@ public class SparseFile : IDisposable
             {
                 ChunkType = (ushort)ChunkType.Raw,
                 ChunkSize = chunkBlocks,
-                TotalSize = (uint)(SparseFormat.ChunkHeaderSize + ((long)chunkBlocks * blockSize))
+                TotalSize = (uint)(Header.ChunkHeaderSize + ((long)chunkBlocks * blockSize))
             };
+
+
 
             AddChunkSorted(new SparseChunk(chunkHeader)
             {
@@ -359,8 +371,10 @@ public class SparseFile : IDisposable
             {
                 ChunkType = (ushort)ChunkType.Raw,
                 ChunkSize = chunkBlocks,
-                TotalSize = (uint)(SparseFormat.ChunkHeaderSize + ((long)chunkBlocks * blockSize))
+                TotalSize = (uint)(Header.ChunkHeaderSize + ((long)chunkBlocks * blockSize))
             };
+
+
 
             AddChunkSorted(new SparseChunk(chunkHeader)
             {
@@ -394,7 +408,7 @@ public class SparseFile : IDisposable
             {
                 ChunkType = (ushort)ChunkType.Fill,
                 ChunkSize = partBlocks,
-                TotalSize = SparseFormat.ChunkHeaderSize + 4
+                TotalSize = (uint)(Header.ChunkHeaderSize + 4)
             })
             {
                 StartBlock = currentBlockStart,
@@ -484,7 +498,7 @@ public class SparseFile : IDisposable
             {
                 ChunkType = (ushort)ChunkType.DontCare,
                 ChunkSize = partBlocks,
-                TotalSize = SparseFormat.ChunkHeaderSize
+                TotalSize = (uint)Header.ChunkHeaderSize
             })
             {
                 StartBlock = currentBlockStart

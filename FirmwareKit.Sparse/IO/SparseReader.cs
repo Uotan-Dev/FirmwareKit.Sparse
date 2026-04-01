@@ -207,10 +207,8 @@ public static class SparseReader
                         {
                             throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
                         }
-                        if (stream.Read(buffer4) != 4)
-                        {
-                            throw new InvalidDataException($"Failed to read CRC32 value for chunk {i}");
-                        }
+                        // Use ReadExactly to ensure we read all 4 bytes (handles partial reads)
+                        stream.ReadExactly(buffer4);
                         var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
                         if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
                         {
@@ -226,6 +224,17 @@ public static class SparseReader
                 {
                     sparseFile.AddChunkRaw(chunk);
                     currentBlock += chunkHeader.ChunkSize;
+                }
+            }
+
+            // Trim trailing DontCare chunk that only exists to pad to header.TotalBlocks.
+            if (sparseFile.Chunks.Count > 0)
+            {
+                var last = sparseFile.Chunks[sparseFile.Chunks.Count - 1];
+                if (last.Header.ChunkType == (ushort)ChunkType.DontCare && (last.StartBlock + last.Header.ChunkSize) == currentBlock && currentBlock == sparseFile.Header.TotalBlocks)
+                {
+                    sparseFile.RemoveLastChunk();
+                    sparseFile.Header = sparseFile.Header with { TotalChunks = sparseFile.Header.TotalChunks - 1 };
                 }
             }
 
@@ -434,10 +443,7 @@ public static class SparseReader
                             throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
                         }
                         var crcFileData = new byte[4];
-                        if (await stream.ReadAsync(crcFileData, 0, 4, cancellationToken) != 4)
-                        {
-                            throw new InvalidDataException($"Failed to read CRC32 value for chunk {i}");
-                        }
+                        await ReadExactlyAsync(stream, crcFileData, 0, 4, cancellationToken);
                         var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcFileData);
                         if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
                         {
@@ -631,7 +637,7 @@ public static class SparseReader
         {
             ChunkType = (ushort)ChunkType.Raw,
             ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
-            TotalSize = (uint)(SparseFormat.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
+            TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
         };
         sparseFile.AddChunkRaw(new SparseChunk(chunkHeader)
         {
@@ -651,7 +657,7 @@ public static class SparseReader
         {
             ChunkType = (ushort)ChunkType.Raw,
             ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
-            TotalSize = (uint)(SparseFormat.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
+            TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
         };
         sparseFile.AddChunkRaw(new SparseChunk(chunkHeader)
         {
