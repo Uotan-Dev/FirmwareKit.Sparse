@@ -543,9 +543,17 @@ public static class SparseWriter
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
         try
         {
+            var exportStartBlock = sparseFile.RawExportStartBlock;
+            uint currentBlock = 0;
             foreach (SparseChunk chunk in sparseFile.Chunks)
             {
                 var size = (long)chunk.Header.ChunkSize * sparseFile.Header.BlockSize;
+                if (exportStartBlock.HasValue && currentBlock + chunk.Header.ChunkSize <= exportStartBlock.Value)
+                {
+                    currentBlock += chunk.Header.ChunkSize;
+                    continue;
+                }
+
                 switch (chunk.Header.ChunkType)
                 {
                     case (ushort)ChunkType.Raw:
@@ -626,6 +634,8 @@ public static class SparseWriter
                         }
                         break;
                 }
+
+                currentBlock += chunk.Header.ChunkSize;
             }
         }
         finally
@@ -633,11 +643,15 @@ public static class SparseWriter
             ArrayPool<byte>.Shared.Return(buffer);
         }
 
-        var expectedFullLength = (long)sparseFile.Header.TotalBlocks * sparseFile.Header.BlockSize;
-        if (stream.CanSeek && stream.Length < expectedFullLength)
+        if (sparseMode && stream.CanSeek)
         {
-            stream.SetLength(expectedFullLength);
+            stream.SetLength(stream.Position);
         }
+        else if (!sparseMode && stream.CanSeek && !sparseFile.RawExportStartBlock.HasValue)
+        {
+            stream.SetLength((long)sparseFile.Header.TotalBlocks * sparseFile.Header.BlockSize);
+        }
+
     }
 
     /// <summary>

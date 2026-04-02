@@ -23,6 +23,11 @@ public class SparseFile : IDisposable
     public ISparseLogger? Logger { get; set; }
 
     /// <summary>
+    /// Gets or sets the starting block used when exporting this file as raw data.
+    /// </summary>
+    internal uint? RawExportStartBlock { get; set; }
+
+    /// <summary>
     /// Gets the list of sparse chunks in the file.
     /// </summary>
     public IReadOnlyList<SparseChunk> Chunks => _chunks;

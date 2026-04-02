@@ -52,36 +52,7 @@ public class ResparseSplitFilesTests
                 continue;
             }
 
-            // If sparse-form comparison failed, try comparing raw data (ignore chunkization differences)
-            for (int j = 0; j < remaining.Count; j++)
-            {
-                var expectedRaw = new byte[0];
-                using (var msExp = new MemoryStream())
-                {
-                    SparseFile.FromImageFile(remaining[j]).WriteRawToStream(msExp, true);
-                    expectedRaw = msExp.ToArray();
-                }
-
-                var producedRaw = new byte[0];
-                using (var msProd = new MemoryStream())
-                {
-                    parts[i].WriteRawToStream(msProd, true);
-                    producedRaw = msProd.ToArray();
-                }
-
-                if (expectedRaw.SequenceEqual(producedRaw))
-                {
-                    remaining.RemoveAt(j);
-                    matchIndex = j;
-                    break;
-                }
-            }
-
-            if (matchIndex >= 0)
-            {
-                continue;
-            }
-
+            // strict compare only: no fallback to raw comparison
             // no match found -> diagnostic information
             var expectedHeader = remaining.Count > 0 ? SparseFile.PeekHeader(remaining[0]) : default;
             var producedHeader = FirmwareKit.Sparse.Models.SparseHeader.FromBytes(produced.AsSpan(0, FirmwareKit.Sparse.Models.SparseFormat.SparseHeaderSize));
@@ -90,7 +61,7 @@ public class ResparseSplitFilesTests
 
             var producedListText = string.Join("\n", producedAllDesc.Select((d, idx) => $"part[{idx}]: {d}"));
             var expectedListText = string.Join("\n", expectedAllDesc.Select((d, idx) => $"file[{idx}]: {d}"));
-            Assert.True(false, $"Produced part #{i} did not match any expected split file.\nOriginal chunks: {originalDesc}\nProduced header: Blocks={producedHeader.TotalBlocks}, Chunks={producedHeader.TotalChunks}, Checksum=0x{producedHeader.ImageChecksum:X8}\nProduced chunks: {producedDesc}\nSample expected header (first remaining): Blocks={expectedHeader.TotalBlocks}, Chunks={expectedHeader.TotalChunks}, Checksum=0x{expectedHeader.ImageChecksum:X8}\nSample expected chunks: {expectedDesc}\nAll produced parts:\n{producedListText}\nAll expected files:\n{expectedListText}");
+            Assert.Fail($"Produced part #{i} did not match any expected split file.\nOriginal chunks: {originalDesc}\nProduced header: Blocks={producedHeader.TotalBlocks}, Chunks={producedHeader.TotalChunks}, Checksum=0x{producedHeader.ImageChecksum:X8}\nProduced chunks: {producedDesc}\nSample expected header (first remaining): Blocks={expectedHeader.TotalBlocks}, Chunks={expectedHeader.TotalChunks}, Checksum=0x{expectedHeader.ImageChecksum:X8}\nSample expected chunks: {expectedDesc}\nAll produced parts:\n{producedListText}\nAll expected files:\n{expectedListText}");
         }
 
         Assert.Empty(remaining);
