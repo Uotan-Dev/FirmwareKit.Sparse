@@ -295,7 +295,15 @@ public class SparseImageStream : Stream
         return newChunk;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Read bytes from the sparse image stream into the provided buffer.
+    /// The stream maps sparse chunks into a contiguous sparse image representation
+    /// and this method returns the requested bytes from the current position.
+    /// </summary>
+    /// <param name="buffer">Destination buffer to receive data.</param>
+    /// <param name="offset">Offset in the buffer to start writing (int).</param>
+    /// <param name="count">Maximum number of bytes to read (int).</param>
+    /// <returns>The number of bytes actually read.</returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
         if (_position >= _totalByteLength) return 0;
@@ -385,7 +393,12 @@ public class SparseImageStream : Stream
         return _sections.Last();
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Seek to a specific position within the generated sparse image stream.
+    /// </summary>
+    /// <param name="offset">Offset to seek to relative to <paramref name="origin"/> (long).</param>
+    /// <param name="origin">Reference point used to obtain the new position (<see cref="SeekOrigin"/>).</param>
+    /// <returns>The new position within the stream (long).</returns>
     public override long Seek(long offset, SeekOrigin origin)
     {
         switch (origin)
@@ -398,31 +411,45 @@ public class SparseImageStream : Stream
         return _position;
     }
 
-    /// <inheritdoc/>
+    /// <summary>Indicates whether this stream supports reading. Always true.</summary>
     public override bool CanRead => true;
-    /// <inheritdoc/>
+
+    /// <summary>Indicates whether this stream supports seeking. Always true.</summary>
     public override bool CanSeek => true;
-    /// <inheritdoc/>
+
+    /// <summary>Indicates whether this stream supports writing. Always false.</summary>
     public override bool CanWrite => false;
-    /// <inheritdoc/>
+
+    /// <summary>Gets the total length, in bytes, of the generated sparse image stream.</summary>
     public override long Length => _totalByteLength;
-    /// <inheritdoc/>
+
+    /// <summary>Gets or sets the current position within the generated sparse image stream.</summary>
     public override long Position { get => _position; set => Seek(value, SeekOrigin.Begin); }
-    /// <inheritdoc/>
+
+    /// <summary>Flush has no effect for read-only stream.</summary>
     public override void Flush() { }
-    /// <inheritdoc/>
+
+    /// <summary>Setting length is not supported for this read-only stream.</summary>
+    /// <param name="value">Not used.</param>
     public override void SetLength(long value)
     {
         throw new NotSupportedException();
     }
 
-    /// <inheritdoc/>
+    /// <summary>Writing is not supported for this read-only stream.</summary>
+    /// <param name="buffer">Not used.</param>
+    /// <param name="offset">Not used.</param>
+    /// <param name="count">Not used.</param>
     public override void Write(byte[] buffer, int offset, int count)
     {
         throw new NotSupportedException();
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Dispose managed resources used by the stream instance.
+    /// If this stream owns the underlying <see cref="SparseFile"/>, it will be disposed.
+    /// </summary>
+    /// <param name="disposing">True when called from <see cref="Dispose"/>.</param>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -432,12 +459,25 @@ public class SparseImageStream : Stream
         base.Dispose(disposing);
     }
 
+    /// <summary>
+    /// Internal sub-provider used to expose a slice of an existing <see cref="ISparseDataProvider"/>.
+    /// This class delegates reads to the parent provider with an added offset and length limit.
+    /// </summary>
     private class SubDataProvider : ISparseDataProvider
     {
+        /// <summary>Parent data provider to delegate reads to.</summary>
         private readonly ISparseDataProvider parent;
+        /// <summary>Byte offset within the parent provider where this sub-view starts (long).</summary>
         private readonly long offset;
+        /// <summary>Length in bytes of this sub-view (long).</summary>
         private readonly long length;
 
+        /// <summary>
+        /// Create a new <see cref="SubDataProvider"/> that represents a sub-range of <paramref name="parent"/>.
+        /// </summary>
+        /// <param name="parent">Parent data provider to wrap.</param>
+        /// <param name="offset">Byte offset within the parent where the sub-range begins (long).</param>
+        /// <param name="length">Length in bytes of the sub-range (long).</param>
         public SubDataProvider(ISparseDataProvider parent, long offset, long length)
         {
             this.parent = parent;
@@ -445,28 +485,64 @@ public class SparseImageStream : Stream
             this.length = length;
         }
 
+        /// <summary>
+        /// Gets the total length, in bytes, of the sub-range exposed by this provider.
+        /// </summary>
         public long Length => length;
+
+        /// <summary>
+        /// Read bytes into a byte array from the sub-range.
+        /// </summary>
+        /// <param name="inOffset">Byte offset relative to the sub-range to begin reading (long).</param>
+        /// <param name="buffer">Destination buffer to receive bytes.</param>
+        /// <param name="bufferOffset">Offset in the destination buffer to start writing (int).</param>
+        /// <param name="count">Maximum number of bytes to read (int).</param>
+        /// <returns>The number of bytes actually read.</returns>
         public int Read(long inOffset, byte[] buffer, int bufferOffset, int count)
         {
             return parent.Read(offset + inOffset, buffer, bufferOffset, (int)Math.Min(count, length - inOffset));
         }
 
+        /// <summary>
+        /// Read bytes into a <see cref="Span{Byte}"/> from the sub-range.
+        /// </summary>
+        /// <param name="inOffset">Byte offset relative to the sub-range to begin reading (long).</param>
+        /// <param name="buffer">Span that will receive the data.</param>
+        /// <returns>The number of bytes actually read.</returns>
         public int Read(long inOffset, Span<byte> buffer)
         {
             return parent.Read(offset + inOffset, buffer.Slice(0, (int)Math.Min(buffer.Length, length - inOffset)));
         }
 
+        /// <summary>
+        /// Writing is not supported for this sub-provider.
+        /// </summary>
+        /// <param name="stream">Not used.</param>
         public void WriteTo(Stream stream)
         {
             throw new NotSupportedException();
         }
 
+        /// <summary>
+        /// Asynchronous writing is not supported for this sub-provider.
+        /// </summary>
+        /// <param name="stream">Not used.</param>
+        /// <param name="cancellationToken">Not used.</param>
+        /// <returns>Never returns; always throws <see cref="NotSupportedException"/>.</returns>
         public Task WriteToAsync(Stream stream, CancellationToken cancellationToken = default)
         {
             throw new NotSupportedException();
         }
 
+        /// <summary>Dispose is a no-op for the sub-provider.</summary>
         public void Dispose() { }
+
+        /// <summary>
+        /// Create a nested sub-provider relative to this sub-range.
+        /// </summary>
+        /// <param name="subOffset">Offset relative to this sub-range (long).</param>
+        /// <param name="subLength">Length in bytes for the nested sub-range (long).</param>
+        /// <returns>A new <see cref="SubDataProvider"/> representing the nested slice.</returns>
         public ISparseDataProvider GetSubProvider(long subOffset, long subLength)
         {
             return new SubDataProvider(parent, offset + subOffset, subLength);

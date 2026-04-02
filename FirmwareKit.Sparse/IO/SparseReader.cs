@@ -30,16 +30,26 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Loads a sparse file from the specified stream.
+    /// Load a <see cref="SparseFile"/> from the provided <see cref="Stream"/>.
     /// </summary>
+    /// <param name="stream">Input stream containing the sparse image data.</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> parsed from the stream.</returns>
     public static SparseFile FromStream(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
         return FromStreamInternal(stream, null, validateCrc, verbose, logger);
     }
 
     /// <summary>
-    /// Loads a sparse file from a byte array buffer.
+    /// Load a <see cref="SparseFile"/> from a byte array that contains the sparse image.
     /// </summary>
+    /// <param name="buffer">Byte array containing the sparse image data.</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> parsed from the buffer.</returns>
     public static SparseFile FromBuffer(byte[] buffer, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
         using var ms = new MemoryStream(buffer);
@@ -47,8 +57,13 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Loads a sparse file from the specified image file.
+    /// Load a <see cref="SparseFile"/> directly from an image file on disk.
     /// </summary>
+    /// <param name="filePath">Path to the image file on disk (string).</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> parsed from the file.</returns>
     public static SparseFile FromImageFile(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
@@ -260,16 +275,28 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Loads a sparse file from the specified stream asynchronously.
+    /// Asynchronously load a <see cref="SparseFile"/> from the provided stream.
     /// </summary>
+    /// <param name="stream">Input stream containing the sparse image data.</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation.</param>
+    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>.</returns>
     public static Task<SparseFile> FromStreamAsync(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
         return FromStreamInternalAsync(stream, null, validateCrc, verbose, logger, cancellationToken);
     }
 
     /// <summary>
-    /// Loads a sparse file from a byte array buffer asynchronously.
+    /// Asynchronously load a <see cref="SparseFile"/> from a byte array that contains the sparse image.
     /// </summary>
+    /// <param name="buffer">Byte array containing the sparse image data.</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation.</param>
+    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>.</returns>
     public static async Task<SparseFile> FromBufferAsync(byte[] buffer, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
         using var ms = new MemoryStream(buffer);
@@ -277,8 +304,14 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Loads a sparse file from the specified image file asynchronously.
+    /// Asynchronously load a <see cref="SparseFile"/> from an image file on disk.
     /// </summary>
+    /// <param name="filePath">Path to the image file on disk (string).</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation.</param>
+    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>.</returns>
     public static async Task<SparseFile> FromImageFileAsync(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
 #if NET6_0_OR_GREATER
@@ -499,8 +532,13 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Smarter import: detects if file is sparse or raw.
+    /// Detect whether the given file is a sparse image or a raw image and import accordingly.
     /// </summary>
+    /// <param name="filePath">Path to the input file on disk (string).</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> representing the imported image.</returns>
     public static SparseFile ImportAuto(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -508,8 +546,14 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Automatically imports data from a stream, detecting whether it is in sparse or raw format.
+    /// Automatically import image data from a stream, detecting whether it is sparse or raw.
     /// </summary>
+    /// <param name="stream">Input stream to inspect and import.</param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <param name="filePath">Optional original file path (used when creating file-backed providers).</param>
+    /// <returns>A <see cref="SparseFile"/> representing the imported image.</returns>
     public static SparseFile ImportAuto(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, string? filePath = null)
     {
         var magicData = new byte[4];
@@ -626,8 +670,13 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Creates a <see cref="SparseFile"/> by importing a raw binary file.
+    /// Create a <see cref="SparseFile"/> by importing a raw binary file (no sparse metadata).
     /// </summary>
+    /// <param name="filePath">Path to the raw binary file (string).</param>
+    /// <param name="blockSize">Block size to use for conversion, in bytes (uint).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> constructed from the raw file.</returns>
     public static SparseFile FromRawFile(string filePath, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null)
     {
         var fi = new FileInfo(filePath);
@@ -647,8 +696,14 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Creates a <see cref="SparseFile"/> by importing a raw binary file asynchronously.
+    /// Asynchronously create a <see cref="SparseFile"/> by importing a raw binary file.
     /// </summary>
+    /// <param name="filePath">Path to the raw binary file (string).</param>
+    /// <param name="blockSize">Block size to use for conversion, in bytes (uint).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
+    /// <returns>A task that resolves to a <see cref="SparseFile"/> constructed from the raw file.</returns>
     public static Task<SparseFile> FromRawFileAsync(string filePath, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
         var fi = new FileInfo(filePath);
@@ -667,8 +722,13 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Reads data from a stream and incorporates it into the sparse file (sparsification).
+    /// Read raw data from a stream and incorporate it into the provided <paramref name="sparseFile"/>
+    /// by converting consecutive blocks into RAW, FILL or DONT_CARE chunks according to <paramref name="mode"/>.
     /// </summary>
+    /// <param name="sparseFile">Target <see cref="SparseFile"/> to populate.</param>
+    /// <param name="stream">Input stream to read raw data from.</param>
+    /// <param name="mode">The sparsification mode to apply (<see cref="SparseReadMode"/>).</param>
+    /// <param name="validateCrc">If true, update CRC while reading (bool).</param>
     public static void ReadFromStream(SparseFile sparseFile, Stream stream, SparseReadMode mode, bool validateCrc = false)
     {
         if (mode == SparseReadMode.Sparse)

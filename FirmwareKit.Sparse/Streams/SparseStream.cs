@@ -28,28 +28,37 @@ public class SparseStream : Stream
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>Indicates whether this stream supports reading (true).</summary>
     public override bool CanRead => true;
-    /// <inheritdoc/>
+
+    /// <summary>Indicates whether this stream supports seeking (true).</summary>
     public override bool CanSeek => true;
-    /// <inheritdoc/>
+
+    /// <summary>Indicates whether this stream supports writing (false).</summary>
     public override bool CanWrite => false;
-    /// <inheritdoc/>
+
+    /// <summary>Gets the total logical length, in bytes, of the underlying sparse data.</summary>
     public override long Length => _length;
 
-    /// <inheritdoc/>
+    /// <summary>Gets or sets the current read position within the stream.</summary>
     public override long Position
     {
         get => _position;
         set => _position = value < 0 ? 0 : (value > _length ? _length : value);
     }
 
-    /// <inheritdoc/>
+    /// <summary>Flush has no effect on this read-only stream.</summary>
     public override void Flush() { }
 
 
 #if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-    /// <inheritdoc/>
+    /// <summary>
+    /// Read bytes from the sparse stream into a byte array.
+    /// </summary>
+    /// <param name="buffer">Destination buffer to receive bytes.</param>
+    /// <param name="offset">Offset in the destination buffer to start writing (int).</param>
+    /// <param name="count">Maximum number of bytes to read (int).</param>
+    /// <returns>The number of bytes read.</returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
         return Read(buffer.AsSpan(offset, count));
@@ -57,7 +66,12 @@ public class SparseStream : Stream
 #endif
 
 #if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-    /// <inheritdoc/>
+    /// <summary>
+    /// Read bytes from the sparse stream into the provided span.
+    /// This method will read up to <paramref name="buffer"/>.Length bytes from the current position.
+    /// </summary>
+    /// <param name="buffer">Destination span to receive bytes.</param>
+    /// <returns>The number of bytes read.</returns>
     public override int Read(Span<byte> buffer)
     {
         if (_position >= _length)
@@ -106,7 +120,14 @@ public class SparseStream : Stream
         return totalRead;
     }
 #else
-    /// <inheritdoc/>
+    /// <summary>
+    /// Read bytes from the sparse stream into the provided buffer.
+    /// This overload is used on platforms that do not support <see cref="Span{T}"/>-based APIs.
+    /// </summary>
+    /// <param name="buffer">Destination buffer to receive bytes.</param>
+    /// <param name="offset">Offset in the destination buffer to start writing (int).</param>
+    /// <param name="count">Maximum number of bytes to read (int).</param>
+    /// <returns>The number of bytes actually read (int).</returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
         if (_position >= _length)
@@ -157,6 +178,14 @@ public class SparseStream : Stream
     }
 #endif
 
+    /// <summary>
+    /// Fill <paramref name="destSpan"/> with data from the specified <paramref name="chunk"/>
+    /// starting at the given <paramref name="offsetInChunk"/>. Handles RAW, FILL and other chunk types.
+    /// </summary>
+    /// <param name="chunk">Chunk to read data from.</param>
+    /// <param name="offsetInChunk">Byte offset inside the chunk to start reading from.</param>
+    /// <param name="destSpan">Destination span to receive chunk bytes.</param>
+    /// <param name="fillValue">Temporary buffer used for fill pattern generation.</param>
     private void ProcessChunkData(SparseChunk chunk, long offsetInChunk, Span<byte> destSpan, Span<byte> fillValue)
     {
         switch (chunk.Header.ChunkType)
@@ -203,6 +232,12 @@ public class SparseStream : Stream
         }
     }
 
+    /// <summary>
+    /// Find the chunk that contains the given logical byte offset and return it
+    /// along with the chunk's starting block index.
+    /// </summary>
+    /// <param name="offset">Logical byte offset within the sparse data.</param>
+    /// <returns>Tuple of the chunk (or null) and its starting block index.</returns>
     private (SparseChunk? chunk, uint startBlock) FindChunkAtOffset(long offset)
     {
         var targetBlock = (uint)(offset / _sparseFile.Header.BlockSize);
@@ -233,6 +268,11 @@ public class SparseStream : Stream
         return (null, 0);
     }
 
+    /// <summary>
+    /// Return the block index of the next chunk following the given byte offset.
+    /// </summary>
+    /// <param name="offset">Logical byte offset within the sparse data.</param>
+    /// <returns>Block index of the next chunk.</returns>
     private uint GetNextChunkBlock(long offset)
     {
         var targetBlock = (uint)(offset / _sparseFile.Header.BlockSize);
@@ -247,7 +287,12 @@ public class SparseStream : Stream
         return _sparseFile.Header.TotalBlocks;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Seek to a specific position within the stream.
+    /// </summary>
+    /// <param name="offset">Offset to seek to relative to <paramref name="origin"/>.</param>
+    /// <param name="origin">Specifies the reference point used to obtain the new position.</param>
+    /// <returns>The new position within the stream.</returns>
     public override long Seek(long offset, SeekOrigin origin)
     {
         switch (origin)
@@ -261,13 +306,21 @@ public class SparseStream : Stream
         return Position;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Setting the length is not supported for this read-only stream.
+    /// </summary>
+    /// <param name="value">Not used.</param>
     public override void SetLength(long value)
     {
         throw new NotSupportedException();
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Writing is not supported for this read-only stream.
+    /// </summary>
+    /// <param name="buffer">Not used.</param>
+    /// <param name="offset">Not used.</param>
+    /// <param name="count">Not used.</param>
     public override void Write(byte[] buffer, int offset, int count)
     {
         throw new NotSupportedException();

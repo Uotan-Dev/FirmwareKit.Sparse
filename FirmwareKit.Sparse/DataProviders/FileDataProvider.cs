@@ -3,20 +3,25 @@
 namespace FirmwareKit.Sparse.DataProviders;
 
 /// <summary>
-/// File-based sparse data provider.
+/// Provides access to a region of a file as an <see cref="ISparseDataProvider"/>.
+/// This implementation reads from a file on disk starting at a given offset and
+/// exposes a fixed-length view over that data.
 /// </summary>
 public class FileDataProvider : ISparseDataProvider
 {
+    /// <summary>Path to the source file (string).</summary>
     private readonly string filePath;
+    /// <summary>Byte offset within the file where the provider view begins (long).</summary>
     private readonly long offset;
+    /// <summary>Length in bytes of the provider view (long).</summary>
     private readonly long length;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="FileDataProvider"/> class.
+    /// Initialize a new <see cref="FileDataProvider"/> for the given file segment.
     /// </summary>
-    /// <param name="filePath">The file path.</param>
-    /// <param name="offset">The starting offset in the file.</param>
-    /// <param name="length">The data length.</param>
+    /// <param name="filePath">Path to the source file on disk (string).</param>
+    /// <param name="offset">Byte offset within the file where the segment starts (long).</param>
+    /// <param name="length">Number of bytes exposed by this provider (long).</param>
     public FileDataProvider(string filePath, long offset, long length)
     {
         this.filePath = filePath;
@@ -24,10 +29,15 @@ public class FileDataProvider : ISparseDataProvider
         this.length = length;
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Gets the total length, in bytes, of the data exposed by this provider.
+    /// </summary>
     public long Length => length;
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Synchronously write the provider's data range to the specified stream.
+    /// </summary>
+    /// <param name="stream">Destination stream to write the data to.</param>
     public void WriteTo(Stream stream)
     {
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
@@ -56,7 +66,12 @@ public class FileDataProvider : ISparseDataProvider
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Asynchronously write the provider's data range to the specified stream.
+    /// </summary>
+    /// <param name="stream">Destination stream to write the data to.</param>
+    /// <param name="cancellationToken">Cancellation token for the asynchronous operation.</param>
+    /// <returns>A task that completes when the write finishes.</returns>
     public async Task WriteToAsync(Stream stream, CancellationToken cancellationToken = default)
     {
 #if NET6_0_OR_GREATER
@@ -89,13 +104,25 @@ public class FileDataProvider : ISparseDataProvider
         }
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Read data from the provider into a byte array.
+    /// </summary>
+    /// <param name="inOffset">Byte offset relative to the provider's start to read from (long).</param>
+    /// <param name="buffer">Destination buffer to receive bytes.</param>
+    /// <param name="bufferOffset">Offset in the destination buffer to start writing (int).</param>
+    /// <param name="count">Maximum number of bytes to read (int).</param>
+    /// <returns>The number of bytes actually read.</returns>
     public int Read(long inOffset, byte[] buffer, int bufferOffset, int count)
     {
         return Read(inOffset, buffer.AsSpan(bufferOffset, count));
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Read data from the provider into a <see cref="Span{Byte}"/>.
+    /// </summary>
+    /// <param name="inOffset">Byte offset relative to the provider's start to read from (long).</param>
+    /// <param name="buffer">Span that receives the data.</param>
+    /// <returns>The number of bytes actually read.</returns>
     public int Read(long inOffset, Span<byte> buffer)
     {
         if (inOffset >= length)
@@ -115,12 +142,20 @@ public class FileDataProvider : ISparseDataProvider
 #endif
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Create a sub-provider that represents a sub-range of this provider.
+    /// </summary>
+    /// <param name="subOffset">Byte offset relative to this provider's start for the sub-range (long).</param>
+    /// <param name="subLength">Length in bytes of the sub-range (long).</param>
+    /// <returns>An <see cref="ISparseDataProvider"/> for the requested sub-range.</returns>
     public ISparseDataProvider GetSubProvider(long subOffset, long subLength)
     {
         return new FileDataProvider(filePath, offset + subOffset, subLength);
     }
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Release any resources held by the provider. This provider does not hold persistent
+    /// resources and Dispose is a no-op.
+    /// </summary>
     public void Dispose() { }
 }

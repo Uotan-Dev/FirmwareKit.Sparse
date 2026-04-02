@@ -1,28 +1,13 @@
 ﻿namespace FirmwareKit.Sparse.Utils;
 
 using Force.Crc32;
+using System.Buffers.Binary;
 
 /// <summary>
-/// CRC32 utility class for checksum calculation.
+/// CRC32 utility class for checksum calculation using Crc32.NET.
 /// </summary>
 public static class Crc32
 {
-    /// <summary>
-    /// Calculates the CRC32 checksum of the given data.
-    /// </summary>
-    /// <param name="data">The data byte array.</param>
-    /// <param name="offset">The starting offset.</param>
-    /// <param name="length">The length. If -1, all data from the offset to the end of the array is used.</param>
-    /// <returns>The calculated CRC32 checksum.</returns>
-    public static uint Calculate(byte[] data, int offset = 0, int length = -1)
-    {
-        if (length == -1)
-        {
-            length = data.Length - offset;
-        }
-        return Calculate(new ReadOnlySpan<byte>(data, offset, length));
-    }
-
     /// <summary>
     /// Calculates the CRC32 checksum of the given data range.
     /// </summary>
@@ -30,7 +15,13 @@ public static class Crc32
     /// <returns>The calculated CRC32 checksum.</returns>
     public static uint Calculate(ReadOnlySpan<byte> data)
     {
-        return Finish(Update(Begin(), data));
+        if (data.IsEmpty)
+        {
+            return 0;
+        }
+
+        // Crc32.NET provides Crc32Algorithm.Compute for one-shot CRC calculation.
+        return Crc32Algorithm.Compute(data.ToArray());
     }
 
     /// <summary>
@@ -47,6 +38,12 @@ public static class Crc32
         {
             length = data.Length - offset;
         }
+
+        if (length <= 0)
+        {
+            return crc;
+        }
+
         return Update(crc, new ReadOnlySpan<byte>(data, offset, length));
     }
 
@@ -123,10 +120,10 @@ public static class Crc32
     /// <summary>
     /// Returns the initial CRC32 value.
     /// </summary>
-    public static uint Begin() => 0xFFFFFFFF;
+    public static uint Begin() => 0;
 
     /// <summary>
     /// Finalizes the CRC32 calculation.
     /// </summary>
-    public static uint Finish(uint crc) => crc ^ 0xFFFFFFFF;
+    public static uint Finish(uint crc) => crc;
 }

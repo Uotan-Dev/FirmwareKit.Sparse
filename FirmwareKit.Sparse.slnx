@@ -1,4 +1,4 @@
 ﻿<Solution>
   <Project Path="FirmwareKit.Sparse/FirmwareKit.Sparse.csproj" />
-  <Project Path="FirmwareKit.Sparse.IntegrationTests/FirmwareKit.Sparse.Tests.csproj" />
+  <Project Path="FirmwareKit.Sparse.Tests/FirmwareKit.Sparse.Tests.csproj" />
 </Solution>

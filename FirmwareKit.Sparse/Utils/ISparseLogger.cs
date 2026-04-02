@@ -26,10 +26,21 @@ public class DelegateLogger : ISparseLogger
     /// <param name="logAction">The action to perform when logging.</param>
     public DelegateLogger(Action<string> logAction) => _logAction = logAction;
 
-    /// <inheritdoc/>
+    /// <summary>
+    /// Log an informational message using the underlying delegate.
+    /// </summary>
+    /// <param name="message">Message text to log.</param>
     public void LogInformation(string message) => _logAction($"[INFO] {message}");
-    /// <inheritdoc/>
+
+    /// <summary>
+    /// Log a warning message using the underlying delegate.
+    /// </summary>
+    /// <param name="message">Message text to log.</param>
     public void LogWarning(string message) => _logAction($"[WARN] {message}");
-    /// <inheritdoc/>
+
+    /// <summary>
+    /// Log an error message using the underlying delegate.
+    /// </summary>
+    /// <param name="message">Message text to log.</param>
     public void LogError(string message) => _logAction($"[ERROR] {message}");
 }

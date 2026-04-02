@@ -275,8 +275,15 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Extracts data from a raw chunk.
+    /// Extract data from a RAW chunk and write it to the provided output stream.
     /// </summary>
+    /// <param name="chunk">The <see cref="SparseChunk"/> to extract data from.</param>
+    /// <param name="currentBlock">The block index where this chunk starts (uint).</param>
+    /// <param name="startBlock">The first block index to include from the partition offset (uint).</param>
+    /// <param name="offsetInBlock">Byte offset within the start block (long).</param>
+    /// <param name="blockSize">Size of a block in bytes (uint).</param>
+    /// <param name="outputStream">Stream to write extracted data into.</param>
+    /// <returns>The number of bytes written to <paramref name="outputStream"/>.</returns>
     private static long ExtractRawChunkData(SparseChunk chunk, uint currentBlock, uint startBlock, long offsetInBlock, uint blockSize, Stream outputStream)
     {
         if (chunk.DataProvider == null)
@@ -319,8 +326,15 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Extracts data from a fill chunk.
+    /// Extract data from a FILL chunk, writing the repeated fill pattern to the output stream.
     /// </summary>
+    /// <param name="chunk">The <see cref="SparseChunk"/> representing the fill region.</param>
+    /// <param name="currentBlock">The block index where this chunk starts (uint).</param>
+    /// <param name="startBlock">The first block index to include from the partition offset (uint).</param>
+    /// <param name="offsetInBlock">Byte offset within the start block (long).</param>
+    /// <param name="blockSize">Size of a block in bytes (uint).</param>
+    /// <param name="outputStream">Stream to write the generated fill bytes into.</param>
+    /// <returns>The number of bytes written to <paramref name="outputStream"/>.</returns>
     private static long ExtractFillChunkData(SparseChunk chunk, uint currentBlock, uint startBlock, long offsetInBlock, uint blockSize, Stream outputStream)
     {
         var fillBytes = new byte[4];
@@ -510,8 +524,11 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Writes fill data to a stream.
+    /// Write a repeated fill pattern to the output stream for the requested number of bytes.
     /// </summary>
+    /// <param name="outputStream">Stream to receive the fill bytes.</param>
+    /// <param name="fillPattern">Byte pattern (typically 4 bytes) that is repeated.</param>
+    /// <param name="totalBytes">Total number of bytes to write from the repeated pattern.</param>
     private static void WriteFillData(Stream outputStream, byte[] fillPattern, long totalBytes)
     {
         var remainingBytes = totalBytes;

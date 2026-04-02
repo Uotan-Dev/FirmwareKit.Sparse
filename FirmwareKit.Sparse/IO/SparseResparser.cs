@@ -23,8 +23,11 @@ public static class SparseResparser
     }
 
     /// <summary>
-    /// Splits the current sparse file into multiple sparse files, each not exceeding the specified maximum size.
+    /// Split a large <see cref="SparseFile"/> into multiple smaller sparse files, each not exceeding <paramref name="maxFileSize"/>.
     /// </summary>
+    /// <param name="sparseFile">Source <see cref="SparseFile"/> to split.</param>
+    /// <param name="maxFileSize">Maximum allowed size in bytes for each output file (long).</param>
+    /// <returns>An enumerable of <see cref="SparseFile"/> instances representing the split parts.</returns>
     public static IEnumerable<SparseFile> Resparse(SparseFile sparseFile, long maxFileSize)
     {
         // overhead: sparse file header + potential trailing skip chunk header + crc chunk header + crc data (4 bytes)

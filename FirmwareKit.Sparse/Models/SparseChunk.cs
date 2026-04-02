@@ -14,13 +14,24 @@ public class SparseChunk : IDisposable
         Header = header;
     }
 
-    /// <summary>Gets or sets the starting block index.</summary>
+    /// <summary>
+    /// Gets or sets the starting block index for this chunk (uint).
+    /// </summary>
     public uint StartBlock { get; set; } = 0;
-    /// <summary>Gets the chunk header.</summary>
+
+    /// <summary>
+    /// Gets the <see cref="ChunkHeader"/> that describes this chunk.
+    /// </summary>
     public ChunkHeader Header { get; init; }
-    /// <summary>Gets or sets the data provider.</summary>
+
+    /// <summary>
+    /// Gets or sets the <see cref="ISparseDataProvider"/> that supplies the chunk's data (may be null).
+    /// </summary>
     public ISparseDataProvider? DataProvider { get; set; }
-    /// <summary>Gets or sets the fill value (used only for Fill chunks).</summary>
+
+    /// <summary>
+    /// Gets or sets the 4-byte fill pattern value used only for Fill chunks (uint).
+    /// </summary>
     public uint FillValue { get; set; }
 
     /// <summary>

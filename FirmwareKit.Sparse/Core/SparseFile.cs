@@ -8,8 +8,10 @@ public class SparseFile : IDisposable
     private readonly List<SparseChunk> _chunks = new List<SparseChunk>();
 
     /// <summary>
-    /// Peeks at the sparse header of a file without reading the entire content.
+    /// Peek at the sparse header of a file without reading the entire content.
     /// </summary>
+    /// <param name="filePath">Path to the sparse image file to inspect (string).</param>
+    /// <returns>The parsed <see cref="SparseHeader"/> read from the file.</returns>
     public static SparseHeader PeekHeader(string filePath) => SparseReader.PeekHeader(filePath);
 
     /// <summary>
@@ -87,11 +89,11 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="SparseFile"/> class with specified block size and total size.
+    /// Initialize a new <see cref="SparseFile"/> with the provided block size and total logical size.
     /// </summary>
-    /// <param name="blockSize">The size of each block in bytes.</param>
-    /// <param name="totalSize">The total logical size of the image.</param>
-    /// <param name="verbose">Whether to enable verbose logging.</param>
+    /// <param name="blockSize">Size of a single block in bytes (uint).</param>
+    /// <param name="totalSize">Total logical size of the image in bytes (long).</param>
+    /// <param name="verbose">Enable verbose logging if true (bool).</param>
     public SparseFile(uint blockSize, long totalSize, bool verbose = false)
     {
         Verbose = verbose;
@@ -111,63 +113,112 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Loads a sparse file from the specified stream.
+    /// Load a sparse file from the provided <see cref="Stream"/>.
     /// </summary>
+    /// <param name="stream">Input stream containing the sparse image data.</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance to capture diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> instance parsed from the stream.</returns>
     public static SparseFile FromStream(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
         => SparseReader.FromStream(stream, validateCrc, verbose, logger);
 
     /// <summary>
-    /// Loads a sparse file from a byte array buffer.
+    /// Load a sparse file from a byte array that contains the whole image.
     /// </summary>
+    /// <param name="buffer">Byte array containing the sparse image data.</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance to capture diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> instance parsed from the buffer.</returns>
     public static SparseFile FromBuffer(byte[] buffer, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
         => SparseReader.FromBuffer(buffer, validateCrc, verbose, logger);
 
     /// <summary>
-    /// Loads a sparse file from the specified image file.
+    /// Load a sparse file directly from an image file on disk.
     /// </summary>
+    /// <param name="filePath">Path to the image file on disk (string).</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostics.</param>
+    /// <returns>A <see cref="SparseFile"/> instance parsed from the file.</returns>
     public static SparseFile FromImageFile(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
         => SparseReader.FromImageFile(filePath, validateCrc, verbose, logger);
 
     /// <summary>
-    /// Loads a sparse file from the specified stream asynchronously.
+    /// Asynchronously load a sparse file from the provided stream.
     /// </summary>
+    /// <param name="stream">Input stream containing the sparse image data.</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance to capture diagnostic messages.</param>
+    /// <param name="cancellationToken">Token to cancel the asynchronous operation.</param>
+    /// <returns>A task that resolves to a <see cref="SparseFile"/> parsed from the stream.</returns>
     public static Task<SparseFile> FromStreamAsync(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
         => SparseReader.FromStreamAsync(stream, validateCrc, verbose, logger, cancellationToken);
 
     /// <summary>
-    /// Loads a sparse file from a byte array buffer asynchronously.
+    /// Asynchronously load a sparse file from the provided byte array buffer.
     /// </summary>
+    /// <param name="buffer">Byte array that contains the sparse image data.</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance to capture diagnostic messages.</param>
+    /// <param name="cancellationToken">Token to cancel the asynchronous operation.</param>
+    /// <returns>A task that resolves to a <see cref="SparseFile"/> parsed from the buffer.</returns>
     public static Task<SparseFile> FromBufferAsync(byte[] buffer, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
         => SparseReader.FromBufferAsync(buffer, validateCrc, verbose, logger, cancellationToken);
 
     /// <summary>
-    /// Loads a sparse file from the specified image file asynchronously.
+    /// Asynchronously load a sparse file from an image file on disk.
     /// </summary>
+    /// <param name="filePath">Path to the image file on disk (string).</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostics.</param>
+    /// <param name="cancellationToken">Token to cancel the asynchronous operation.</param>
+    /// <returns>A task that resolves to a <see cref="SparseFile"/> parsed from the file.</returns>
     public static Task<SparseFile> FromImageFileAsync(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
         => SparseReader.FromImageFileAsync(filePath, validateCrc, verbose, logger, cancellationToken);
 
 
     /// <summary>
-    /// Automatically imports a file, detecting whether it is in sparse or raw format.
+    /// Automatically import an image file, detecting whether it is sparse or raw.
     /// </summary>
+    /// <param name="filePath">Path to the input file (string).</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger for diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> representing the imported image.</returns>
     public static SparseFile ImportAuto(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
         => SparseReader.ImportAuto(filePath, validateCrc, verbose, logger);
 
     /// <summary>
-    /// Automatically imports data from a stream, detecting whether it is in sparse or raw format.
+    /// Automatically import image data from a stream, detecting whether it is sparse or raw.
     /// </summary>
+    /// <param name="stream">Input stream to read image data from.</param>
+    /// <param name="validateCrc">If true, CRC validation will be performed (bool).</param>
+    /// <param name="verbose">If true, enable verbose logging (bool).</param>
+    /// <param name="logger">Optional logger for diagnostic messages.</param>
+    /// <returns>A <see cref="SparseFile"/> representing the imported image.</returns>
     public static SparseFile ImportAuto(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
         => SparseReader.ImportAuto(stream, validateCrc, verbose, logger);
 
     /// <summary>
-    /// Creates a <see cref="SparseFile"/> by importing a raw binary file.
+    /// Create a <see cref="SparseFile"/> by importing a raw binary file and converting it to sparse representation.
     /// </summary>
+    /// <param name="filePath">Path to the raw binary file (string).</param>
+    /// <param name="blockSize">Block size to use for conversion, in bytes (uint).</param>
+    /// <param name="verbose">Enable verbose logging if true (bool).</param>
+    /// <param name="logger">Optional logger instance for diagnostics.</param>
+    /// <returns>A <see cref="SparseFile"/> converted from the raw file.</returns>
     public static SparseFile FromRawFile(string filePath, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null)
         => SparseReader.FromRawFile(filePath, blockSize, verbose, logger);
 
     /// <summary>
-    /// Resizes the sparse file total logical size.
+    /// Resize the sparse file's total logical size to the provided value.
     /// </summary>
+    /// <param name="newSize">New total size in bytes for the sparse image (long).</param>
     public void Resize(long newSize)
     {
         var newTotalBlocks = (uint)((newSize + Header.BlockSize - 1) / Header.BlockSize);
@@ -175,58 +226,86 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Writes the sparse file content to the specified stream.
+    /// Write the sparse file to the given stream.
     /// </summary>
+    /// <param name="stream">Destination stream to write the sparse image to.</param>
+    /// <param name="sparse">If true, write in sparse format; otherwise write raw data.</param>
+    /// <param name="gzip">If true, gzip-compress the written output (bool).</param>
+    /// <param name="includeCrc">If true, include CRC32 chunk per chunk (bool).</param>
     public void WriteToStream(Stream stream, bool sparse = true, bool gzip = false, bool includeCrc = false)
         => SparseWriter.WriteToStream(this, stream, sparse, gzip, includeCrc);
 
     /// <summary>
-    /// Writes the sparse file content to the specified stream asynchronously.
+    /// Asynchronously write the sparse file to the provided stream.
     /// </summary>
+    /// <param name="stream">Destination stream to write the sparse image to.</param>
+    /// <param name="sparse">If true, write in sparse format; otherwise write raw data.</param>
+    /// <param name="gzip">If true, gzip-compress the written output (bool).</param>
+    /// <param name="includeCrc">If true, include CRC32 chunk per chunk (bool).</param>
+    /// <param name="cancellationToken">Token to cancel the asynchronous write operation.</param>
+    /// <returns>A task representing the asynchronous write operation.</returns>
     public Task WriteToStreamAsync(Stream stream, bool sparse = true, bool gzip = false, bool includeCrc = false, CancellationToken cancellationToken = default)
         => SparseWriter.WriteToStreamAsync(this, stream, sparse, gzip, includeCrc, cancellationToken);
 
     /// <summary>
-    /// Writes the raw (uncompressed) data of the sparse file to the specified stream.
+    /// Write the raw (uncompressed) data represented by this sparse file to the stream.
     /// </summary>
+    /// <param name="stream">Destination stream to receive raw data.</param>
+    /// <param name="sparseMode">If true, preserve sparse metadata while streaming raw data (bool).</param>
     public void WriteRawToStream(Stream stream, bool sparseMode = false)
         => SparseWriter.WriteRawToStream(this, stream, sparseMode);
 
     /// <summary>
-    /// Writes the raw (uncompressed) data of the sparse file to the specified stream asynchronously.
+    /// Asynchronously write the raw (uncompressed) data represented by this sparse file to the stream.
     /// </summary>
+    /// <param name="stream">Destination stream to receive raw data.</param>
+    /// <param name="sparseMode">If true, preserve sparse metadata while streaming raw data (bool).</param>
+    /// <param name="cancellationToken">Token to cancel the asynchronous write operation.</param>
+    /// <returns>A task representing the asynchronous raw write operation.</returns>
     public Task WriteRawToStreamAsync(Stream stream, bool sparseMode = false, CancellationToken cancellationToken = default)
         => SparseWriter.WriteRawToStreamAsync(this, stream, sparseMode, cancellationToken);
 
     /// <summary>
-    /// Represents a callback method used for processing written data chunks.
+    /// Delegate used as a callback when streaming or writing sparse data blocks.
     /// </summary>
-    /// <param name="data">The byte array containing the data, or <c>null</c> for gaps.</param>
-    /// <param name="length">The length of the data to process.</param>
-    /// <returns>A status code where negative values typically indicate failure.</returns>
+    /// <param name="data">Byte array containing the block data, or <c>null</c> to indicate a gap.</param>
+    /// <param name="length">Number of valid bytes in <paramref name="data"/> to process (int).</param>
+    /// <returns>An integer status code; negative values typically indicate failure.</returns>
     public delegate int SparseWriteCallback(byte[]? data, int length);
 
     /// <summary>
-    /// Writes the sparse file content using a custom callback for each data block.
+    /// Write the sparse file using a custom callback for each data block instead of writing to a stream.
     /// </summary>
+    /// <param name="callback">Callback invoked for each data block.</param>
+    /// <param name="sparse">If true, write in sparse format; otherwise write raw blocks.</param>
+    /// <param name="includeCrc">If true, include CRC32 chunks (bool).</param>
     public void WriteWithCallback(SparseWriteCallback callback, bool sparse = true, bool includeCrc = false)
         => SparseWriter.WriteWithCallback(this, callback, sparse, includeCrc);
 
     /// <summary>
-    /// Splits the current sparse file into multiple sparse files, each not exceeding the specified maximum size.
+    /// Split this sparse file into multiple smaller sparse files whose size does not exceed <paramref name="maxFileSize"/>.
     /// </summary>
+    /// <param name="maxFileSize">Maximum size in bytes for each resparsed file (long).</param>
+    /// <returns>A sequence of <see cref="SparseFile"/> instances representing the split images.</returns>
     public IEnumerable<SparseFile> Resparse(long maxFileSize)
         => SparseResparser.Resparse(this, maxFileSize);
 
     /// <summary>
-    /// Gets a stream for exporting a specific range of blocks from the sparse file.
+    /// Get a <see cref="Stream"/> for exporting a specific range of blocks from this sparse file.
     /// </summary>
+    /// <param name="startBlock">Index of the first block to export (uint).</param>
+    /// <param name="blockCount">Number of blocks to include in the exported stream (uint).</param>
+    /// <param name="includeCrc">If true, include CRC32 chunks in the exported data (bool).</param>
+    /// <returns>A stream that provides the requested exported data range.</returns>
     public Stream GetExportStream(uint startBlock, uint blockCount, bool includeCrc = false)
         => new SparseImageStream(this, startBlock, blockCount, includeCrc, fullRange: false);
 
     /// <summary>
-    /// Gets a collection of streams representing the resparsed (split) image files.
+    /// Get a collection of streams representing the resparsed (split) image files.
     /// </summary>
+    /// <param name="maxFileSize">Maximum size in bytes for each split file (long).</param>
+    /// <param name="includeCrc">If true, include CRC32 chunks in each stream (bool).</param>
+    /// <returns>An enumerable of streams for each resparsed image part.</returns>
     public IEnumerable<Stream> GetResparsedStreams(long maxFileSize, bool includeCrc = false)
     {
         foreach (SparseFile file in Resparse(maxFileSize))
@@ -236,8 +315,11 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Gets the length when written to disk.
+    /// Calculate the length in bytes when this sparse file is written to disk.
     /// </summary>
+    /// <param name="sparse">If true, calculate length for sparse format; otherwise raw format (bool).</param>
+    /// <param name="includeCrc">If true, include CRC32 chunk overhead (bool).</param>
+    /// <returns>The number of bytes required to write this file.</returns>
     public long GetLength(bool sparse, bool includeCrc)
     {
         if (!sparse)
@@ -267,8 +349,12 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Adds a RAW chunk that references data from an external file.
+    /// Add a RAW chunk that references data from an external file.
     /// </summary>
+    /// <param name="filePath">Path to the external file containing the chunk data (string).</param>
+    /// <param name="offset">Byte offset within the external file where the chunk starts (long).</param>
+    /// <param name="size">Number of bytes to include in the chunk (uint).</param>
+    /// <param name="blockIndex">Optional explicit starting block index; if null, appended at the current end (uint?).</param>
     public void AddRawFileChunk(string filePath, long offset, uint size, uint? blockIndex = null)
     {
         var blockSize = Header.BlockSize;
@@ -309,8 +395,10 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Adds a RAW chunk using data from a byte array buffer.
+    /// Add a RAW chunk using data from an in-memory byte array buffer.
     /// </summary>
+    /// <param name="data">Byte array with source data for the chunk.</param>
+    /// <param name="blockIndex">Optional explicit starting block index; if null, appended at the current end (uint?).</param>
     public void AddRawChunk(byte[] data, uint? blockIndex = null)
     {
         var blockSize = Header.BlockSize;
@@ -351,8 +439,13 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Adds a RAW chunk using data from a stream.
+    /// Add a RAW chunk using data read from a stream.
     /// </summary>
+    /// <param name="stream">Source stream to read chunk data from.</param>
+    /// <param name="offset">Byte offset within the stream to start reading (long).</param>
+    /// <param name="size">Number of bytes to include in the chunk (uint).</param>
+    /// <param name="blockIndex">Optional explicit starting block index; if null, appended at the current end (uint?).</param>
+    /// <param name="leaveOpen">If true, do not close the input stream after reading (bool).</param>
     public void AddStreamChunk(Stream stream, long offset, uint size, uint? blockIndex = null, bool leaveOpen = true)
     {
         var blockSize = Header.BlockSize;
@@ -393,8 +486,11 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Adds a FILL chunk that repeats a 4-byte value.
+    /// Add a FILL chunk that repeats a 4-byte pattern to cover the specified range.
     /// </summary>
+    /// <param name="fillValue">4-byte value to repeat (uint).</param>
+    /// <param name="size">Total size in bytes that the fill chunk should cover.</param>
+    /// <param name="blockIndex">Optional explicit starting block index; if null, appended at the current end (uint?).</param>
     public void AddFillChunk(uint fillValue, long size, uint? blockIndex = null)
     {
         var blockSize = Header.BlockSize;
@@ -426,8 +522,10 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Adds a DONT_CARE (skip) chunk representing an unallocated or empty region.
+    /// Add a DONT_CARE (skip) chunk representing an unallocated or empty region.
     /// </summary>
+    /// <param name="size">Size in bytes of the unallocated region to represent.</param>
+    /// <param name="blockIndex">Optional explicit starting block index; if null, appended at the current end (uint?).</param>
     public void AddDontCareChunk(long size, uint? blockIndex = null)
     {
         var totalBlocks = (uint)((size + Header.BlockSize - 1) / Header.BlockSize);
@@ -436,8 +534,9 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Iterates through all chunks that contain actual data (RAW or FILL).
+    /// Iterate through all chunks that contain actual data (RAW or FILL) and invoke the provided action.
     /// </summary>
+    /// <param name="action">Action to invoke for each data chunk. Parameters: chunk, startBlock, chunkSize.</param>
     public void ForEachChunk(Action<SparseChunk, uint, uint> action)
     {
         uint currentBlock = 0;
@@ -452,8 +551,9 @@ public class SparseFile : IDisposable
     }
 
     /// <summary>
-    /// Iterates through all chunks in the file.
+    /// Iterate through every chunk in the sparse file and invoke the provided action for each.
     /// </summary>
+    /// <param name="action">Action to invoke for each chunk. Parameters: chunk, startBlock, chunkSize.</param>
     public void ForEachChunkAll(Action<SparseChunk, uint, uint> action)
     {
         uint currentBlock = 0;

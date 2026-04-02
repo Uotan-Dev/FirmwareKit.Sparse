@@ -18,8 +18,15 @@ public static class SparseWriter
     private const int BufferSize = 1024 * 1024;
 
     /// <summary>
-    /// Writes the sparse file content to the specified stream asynchronously.
+    /// Asynchronously write the serialized sparse image to the provided <see cref="Stream"/>.
     /// </summary>
+    /// <param name="sparseFile">The <see cref="SparseFile"/> to serialize and write.</param>
+    /// <param name="stream">Destination stream to receive the sparse image bytes.</param>
+    /// <param name="sparse">If false, write raw/un-sparsed data instead of sparse format (bool).</param>
+    /// <param name="gzip">If true, compress the output with GZip (bool).</param>
+    /// <param name="includeCrc">If true, include a CRC chunk and update header checksum (bool).</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous write operation.</param>
+    /// <returns>A task that completes when the write operation finishes.</returns>
     public static async Task WriteToStreamAsync(SparseFile sparseFile, Stream stream, bool sparse = true, bool gzip = false, bool includeCrc = false, CancellationToken cancellationToken = default)
     {
         if (!sparse)
@@ -228,8 +235,14 @@ public static class SparseWriter
     }
 
     /// <summary>
-    /// Writes the raw (uncompressed) data of the sparse file to the specified stream asynchronously.
+    /// Asynchronously write only the raw data payloads of the sparse file to the specified stream.
+    /// This writes RAW/FILL/DONT_CARE payloads unframed (no sparse headers) and is useful for exports.
     /// </summary>
+    /// <param name="sparseFile">The <see cref="SparseFile"/> containing chunks to export.</param>
+    /// <param name="stream">Destination stream to receive raw payload bytes.</param>
+    /// <param name="sparseMode">If true and the stream supports seeking, use seeking for sparse skips (bool).</param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous write operation.</param>
+    /// <returns>A task that completes when the raw write operation finishes.</returns>
     public static async Task WriteRawToStreamAsync(SparseFile sparseFile, Stream stream, bool sparseMode = false, CancellationToken cancellationToken = default)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
@@ -325,8 +338,13 @@ public static class SparseWriter
     }
 
     /// <summary>
-    /// Writes the sparse file content to the specified stream.
+    /// Write the serialized sparse image to the provided <see cref="Stream"/> synchronously.
     /// </summary>
+    /// <param name="sparseFile">The <see cref="SparseFile"/> to serialize and write.</param>
+    /// <param name="stream">Destination stream to receive the sparse image bytes.</param>
+    /// <param name="sparse">If false, write raw/un-sparsed data instead of sparse format (bool).</param>
+    /// <param name="gzip">If true, compress the output with GZip (bool).</param>
+    /// <param name="includeCrc">If true, include a CRC chunk and update header checksum (bool).</param>
     public static void WriteToStream(SparseFile sparseFile, Stream stream, bool sparse = true, bool gzip = false, bool includeCrc = false)
     {
         if (!sparse)
@@ -536,8 +554,11 @@ public static class SparseWriter
     }
 
     /// <summary>
-    /// Writes the raw (uncompressed) data of the sparse file to the specified stream.
+    /// Write only the raw data payloads of the sparse file to the specified stream synchronously.
     /// </summary>
+    /// <param name="sparseFile">The <see cref="SparseFile"/> containing chunks to export.</param>
+    /// <param name="stream">Destination stream to receive raw payload bytes.</param>
+    /// <param name="sparseMode">If true and the stream supports seeking, use seeking for sparse skips (bool).</param>
     public static void WriteRawToStream(SparseFile sparseFile, Stream stream, bool sparseMode = false)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
@@ -655,8 +676,13 @@ public static class SparseWriter
     }
 
     /// <summary>
-    /// Writes the sparse file content using a custom callback for each data block.
+    /// Serialize the sparse file and deliver the output in-memory using a custom <paramref name="callback"/>.
+    /// The callback receives byte blocks and should return a non-negative value to continue.
     /// </summary>
+    /// <param name="sparseFile">The <see cref="SparseFile"/> to serialize.</param>
+    /// <param name="callback">Callback invoked with serialized byte blocks; returning &lt;0 will abort.</param>
+    /// <param name="sparse">If false, produce raw/un-sparsed bytes rather than sparse format (bool).</param>
+    /// <param name="includeCrc">If true, include a CRC chunk and update header checksum (bool).</param>
     public static void WriteWithCallback(SparseFile sparseFile, SparseFile.SparseWriteCallback callback, bool sparse = true, bool includeCrc = false)
     {
         if (!sparse)
