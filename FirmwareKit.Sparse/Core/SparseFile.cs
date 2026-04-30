@@ -291,6 +291,27 @@ public class SparseFile : IDisposable
         => SparseResparser.Resparse(this, maxFileSize);
 
     /// <summary>
+    /// Split a sparse file from stream into multiple smaller sparse files using streaming parsing.
+    /// Optimized for 32-bit AOT environments handling large files (up to 16GB).
+    /// </summary>
+    /// <param name="stream">Stream containing the sparse file data</param>
+    /// <param name="maxFileSize">Maximum size in bytes for each resparsed file (long).</param>
+    /// <param name="leaveOpen">Whether to leave the stream open after processing (bool).</param>
+    /// <returns>A sequence of <see cref="SparseFile"/> instances representing the split images.</returns>
+    public static IEnumerable<SparseFile> ResparseStreamed(Stream stream, long maxFileSize, bool leaveOpen = false)
+        => SparseResparserOptimized.ResparseStreamed(stream, maxFileSize, leaveOpen);
+
+    /// <summary>
+    /// Split a sparse file from disk into multiple smaller sparse files using memory-mapped I/O.
+    /// Optimized for 32-bit AOT environments handling large files (up to 16GB).
+    /// </summary>
+    /// <param name="filePath">Path to the sparse file (string).</param>
+    /// <param name="maxFileSize">Maximum size in bytes for each resparsed file (long).</param>
+    /// <returns>A sequence of <see cref="SparseFile"/> instances representing the split images.</returns>
+    public static IEnumerable<SparseFile> ResparseMapped(string filePath, long maxFileSize)
+        => SparseResparserOptimized.ResparseMapped(filePath, maxFileSize);
+
+    /// <summary>
     /// Get a <see cref="Stream"/> for exporting a specific range of blocks from this sparse file.
     /// </summary>
     /// <param name="startBlock">Index of the first block to export (uint).</param>
@@ -396,6 +417,7 @@ public class SparseFile : IDisposable
 
     /// <summary>
     /// Add a RAW chunk using data from an in-memory byte array buffer.
+    /// Optimized version that minimizes memory allocations.
     /// </summary>
     /// <param name="data">Byte array with source data for the chunk.</param>
     /// <param name="blockIndex">Optional explicit starting block index; if null, appended at the current end (uint?).</param>
@@ -404,6 +426,9 @@ public class SparseFile : IDisposable
         var blockSize = Header.BlockSize;
         var totalBlocks = (uint)((data.Length + blockSize - 1) / blockSize);
         var currentBlockStart = GetNextBlockAndCheckOverlap(blockIndex, totalBlocks);
+
+        // Optimized: Use a single MemoryDataProvider for the entire data
+        var provider = new MemoryDataProvider(data, 0, data.Length);
 
         var remaining = (uint)data.Length;
         var currentOffset = 0;
@@ -425,12 +450,11 @@ public class SparseFile : IDisposable
                 TotalSize = (uint)(Header.ChunkHeaderSize + ((long)chunkBlocks * blockSize))
             };
 
-
-
+            // Use GetSubProvider instead of creating new MemoryDataProvider each time
             AddChunkSorted(new SparseChunk(chunkHeader)
             {
                 StartBlock = currentBlockStart,
-                DataProvider = new MemoryDataProvider(data, currentOffset, (int)partSize)
+                DataProvider = provider.GetSubProvider(currentOffset, (long)partSize)
             });
             currentBlockStart += chunkBlocks;
             remaining -= (uint)partSize;
@@ -569,15 +593,36 @@ public class SparseFile : IDisposable
         var start = blockIndex ?? CurrentBlock;
         var end = start + sizeInBlocks;
 
-        // Optimized overlap check using binary search would be overkill if chunks are few,
-        // but for many chunks we can at least optimize the linear search.
-        for (int i = 0; i < _chunks.Count; i++)
+        // Optimized: Use binary search to find potential overlapping chunks
+        int count = _chunks.Count;
+        if (count > 0)
         {
-            SparseChunk chunk = _chunks[i];
-            var chunkEnd = chunk.StartBlock + chunk.Header.ChunkSize;
-            if (start < chunkEnd && end > chunk.StartBlock)
+            int left = 0, right = count - 1;
+
+            // Find the first chunk that might overlap
+            while (left <= right)
             {
-                throw new ArgumentException($"Block region [{start}, {end}) overlaps with existing chunk [{chunk.StartBlock}, {chunkEnd}).");
+                int mid = left + ((right - left) >> 1);
+                uint midEnd = _chunks[mid].StartBlock + _chunks[mid].Header.ChunkSize;
+
+                if (midEnd <= start)
+                    left = mid + 1;
+                else
+                    right = mid - 1;
+            }
+
+            // Check a small window around the potential overlap point
+            int checkStart = Math.Max(0, left - 2);
+            int checkEnd = Math.Min(count, left + 2);
+
+            for (int i = checkStart; i < checkEnd; i++)
+            {
+                SparseChunk chunk = _chunks[i];
+                var chunkEnd = chunk.StartBlock + chunk.Header.ChunkSize;
+                if (start < chunkEnd && end > chunk.StartBlock)
+                {
+                    throw new ArgumentException($"Block region [{start}, {end}) overlaps with existing chunk [{chunk.StartBlock}, {chunkEnd}).");
+                }
             }
         }
 
@@ -616,16 +661,38 @@ public class SparseFile : IDisposable
 
     private void AddChunkSorted(SparseChunk chunk)
     {
-        // Many use cases add chunks sequentially. Optimized for that.
-        if (_chunks.Count == 0 || chunk.StartBlock >= _chunks[_chunks.Count - 1].StartBlock)
+        // Optimized: Most use cases add chunks sequentially
+        int count = _chunks.Count;
+        if (count == 0 || chunk.StartBlock >= _chunks[count - 1].StartBlock)
         {
             _chunks.Add(chunk);
             return;
         }
 
-        var index = _chunks.BinarySearch(chunk, SparseChunkComparer.Instance);
-        if (index < 0) _chunks.Insert(~index, chunk);
-        else _chunks.Insert(index, chunk);
+        // Fast path for append-like operations
+        if (chunk.StartBlock > _chunks[count - 1].StartBlock)
+        {
+            _chunks.Add(chunk);
+            return;
+        }
+
+        // Binary search for insertion point
+        int left = 0, right = count - 1;
+        while (left <= right)
+        {
+            int mid = left + ((right - left) >> 1);
+            uint midBlock = _chunks[mid].StartBlock;
+            if (midBlock == chunk.StartBlock)
+            {
+                _chunks.Insert(mid, chunk);
+                return;
+            }
+            if (midBlock < chunk.StartBlock)
+                left = mid + 1;
+            else
+                right = mid - 1;
+        }
+        _chunks.Insert(left, chunk);
     }
 
     private class SparseChunkComparer : IComparer<SparseChunk>
