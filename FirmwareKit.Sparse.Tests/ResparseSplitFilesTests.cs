@@ -1,7 +1,4 @@
 using FirmwareKit.Sparse.Core;
-using FirmwareKit.Sparse.IO;
-using System.IO;
-using System.Linq;
 using Xunit;
 
 namespace FirmwareKit.Sparse.IntegrationTests;

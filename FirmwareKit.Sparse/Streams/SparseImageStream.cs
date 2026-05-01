@@ -1,7 +1,10 @@
+using System.Buffers;
+
 namespace FirmwareKit.Sparse.Streams;
 
 /// <summary>
 /// A stream that maps sparse chunks back into a complete sparse image format.
+/// <para>将稀疏数据块映射回完整稀疏镜像格式的流。</para>
 /// </summary>
 public class SparseImageStream : Stream
 {
@@ -33,19 +36,19 @@ public class SparseImageStream : Stream
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SparseImageStream"/> class.
+    /// <para>初始化 SparseImageStream 类的新实例。</para>
     /// </summary>
-    /// <param name="source">The source sparse file.</param>
-    /// <param name="startBlock">The absolute starting block offset.</param>
-    /// <param name="blockCount">The number of blocks in the stream.</param>
-    /// <param name="includeCrc">Whether to append a CRC32 checksum chunk.</param>
-    /// <param name="fullRange">Whether to maintain the original file's TotalBlocks and pad with "skip" chunks.</param>
-    /// <param name="disposeSource">Whether to dispose the source file when this stream is disposed.</param>
+    /// <param name="source">The source sparse file. <para>源稀疏文件。</para></param>
+    /// <param name="startBlock">The absolute starting block offset. <para>绝对起始块偏移。</para></param>
+    /// <param name="blockCount">The number of blocks in the stream. <para>流中的块数量。</para></param>
+    /// <param name="includeCrc">Whether to append a CRC32 checksum chunk. <para>是否追加 CRC32 校验和数据块。</para></param>
+    /// <param name="fullRange">Whether to maintain the original file's TotalBlocks and pad with "skip" chunks. <para>是否保持原始文件的 TotalBlocks 并用跳过块填充。</para></param>
+    /// <param name="disposeSource">Whether to dispose the source file when this stream is disposed. <para>释放此流时是否释放源文件。</para></param>
     public SparseImageStream(SparseFile source, uint startBlock, uint blockCount, bool includeCrc = false, bool fullRange = true, bool disposeSource = false)
     {
         _blockSize = source.Header.BlockSize;
         _ownedFile = disposeSource ? source : null;
 
-        // Ensure chunk header size is available for CloneChunkSlice during mapping
         _chunkHeaderSize = (int)source.Header.ChunkHeaderSize;
 
         MapChunks(source, startBlock, blockCount, fullRange);
@@ -72,22 +75,17 @@ public class SparseImageStream : Stream
             TotalChunks = totalChunks,
             ImageChecksum = imageChecksum
         };
-        // _chunkHeaderSize was initialized from source.Header above
-
-        // Sanity-check: first print mapped chunk info for debugging
-        // sanity checks omitted in release
 
         for (int i = 0; i < _mappedChunks.Count; i++)
         {
             var c = _mappedChunks[i];
-            long expected = c.Header.ChunkType == (ushort)ChunkType.Raw
-                ? (long)_chunkHeaderSize + ((long)c.Header.ChunkSize * _blockSize)
-                : c.Header.ChunkType == (ushort)ChunkType.Fill ? (long)_chunkHeaderSize + 4 : (long)_chunkHeaderSize;
+            long expected = ChunkHelper.GetDiskSize(c.Header.ChunkType, c.Header.ChunkSize, (ushort)_chunkHeaderSize, _blockSize);
             if (c.Header.TotalSize != (uint)expected)
             {
                 throw new InvalidOperationException($"Mapped chunk {i} TotalSize mismatch: actual={c.Header.TotalSize}, expected={expected}");
             }
         }
+
         var headerBytes = header.ToBytes();
         _sections.Add(new Section
         {
@@ -172,10 +170,15 @@ public class SparseImageStream : Stream
         _totalByteLength = currentByteOffset;
     }
 
+    /// <summary>
+    /// Calculates the CRC32 checksum over all mapped chunks.
+    /// <para>计算所有映射数据块的 CRC32 校验和。</para>
+    /// </summary>
+    /// <returns>The finished CRC32 checksum value. <para>完成的 CRC32 校验和值。</para></returns>
     private uint CalculateChecksum()
     {
         var checksum = Crc32.Begin();
-        var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(1024 * 1024);
+        var buffer = ArrayPool<byte>.Shared.Rent(1024 * 1024);
 
         try
         {
@@ -215,12 +218,20 @@ public class SparseImageStream : Stream
         }
         finally
         {
-            System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+            ArrayPool<byte>.Shared.Return(buffer);
         }
 
         return Crc32.Finish(checksum);
     }
 
+    /// <summary>
+    /// Maps chunks from the source sparse file into the specified block range.
+    /// <para>将源稀疏文件中的数据块映射到指定的块范围。</para>
+    /// </summary>
+    /// <param name="source">The source sparse file. <para>源稀疏文件。</para></param>
+    /// <param name="startBlock">The starting block offset. <para>起始块偏移。</para></param>
+    /// <param name="blockCount">The number of blocks to map. <para>要映射的块数量。</para></param>
+    /// <param name="fullRange">Whether to pad with DontCare chunks for the full range. <para>是否用 DontCare 块填充完整范围。</para></param>
     private void MapChunks(SparseFile source, uint startBlock, uint blockCount, bool fullRange)
     {
         if (fullRange && startBlock > 0)
@@ -246,11 +257,7 @@ public class SparseImageStream : Stream
                 var intersectEnd = Math.Min(endBlock, chunkEnd);
                 var intersectCount = intersectEnd - intersectStart;
 
-                // Validate source chunk header TotalSize before cloning
-                long srcExpected = chunk.Header.ChunkType == (ushort)ChunkType.Raw
-                    ? source.Header.ChunkHeaderSize + ((long)chunk.Header.ChunkSize * source.Header.BlockSize)
-                    : chunk.Header.ChunkType == (ushort)ChunkType.Fill ? source.Header.ChunkHeaderSize + 4 : source.Header.ChunkHeaderSize;
-                // debug: validated source chunk header matches expected
+                long srcExpected = ChunkHelper.GetDiskSize(chunk.Header.ChunkType, chunk.Header.ChunkSize, source.Header.ChunkHeaderSize, source.Header.BlockSize);
                 if (chunk.Header.TotalSize != (uint)srcExpected)
                 {
                     throw new InvalidOperationException($"Source chunk TotalSize mismatch: Type=0x{chunk.Header.ChunkType:X4}, ChunkSize={chunk.Header.ChunkSize}, HeaderChunkSize={source.Header.ChunkHeaderSize}, BlockSize={source.Header.BlockSize}, TotalSize(actual)={chunk.Header.TotalSize}, expected={srcExpected}");
@@ -275,14 +282,20 @@ public class SparseImageStream : Stream
         }
     }
 
+    /// <summary>
+    /// Clones a slice of a chunk for the specified block range.
+    /// <para>克隆指定块范围的数据块切片。</para>
+    /// </summary>
+    /// <param name="original">The original chunk to slice. <para>要切片的原始数据块。</para></param>
+    /// <param name="offsetInBlocks">Block offset within the original chunk. <para>原始数据块内的块偏移。</para></param>
+    /// <param name="count">Number of blocks in the slice. <para>切片中的块数量。</para></param>
+    /// <returns>A new <see cref="SparseChunk"/> representing the slice. <para>表示切片的新 SparseChunk。</para></returns>
     private SparseChunk CloneChunkSlice(SparseChunk original, uint offsetInBlocks, uint count)
     {
         ChunkHeader header = original.Header with
         {
             ChunkSize = count,
-            TotalSize = original.Header.ChunkType == (ushort)ChunkType.Raw
-                ? (uint)(_chunkHeaderSize + (count * _blockSize))
-                : original.Header.ChunkType == (ushort)ChunkType.Fill ? (uint)(_chunkHeaderSize + 4) : (uint)_chunkHeaderSize
+            TotalSize = ChunkHelper.GetExpectedTotalSize(original.Header.ChunkType, count, (ushort)_chunkHeaderSize, _blockSize)
         };
 
         var newChunk = new SparseChunk(header) { FillValue = original.FillValue };
@@ -296,14 +309,13 @@ public class SparseImageStream : Stream
     }
 
     /// <summary>
-    /// Read bytes from the sparse image stream into the provided buffer.
-    /// The stream maps sparse chunks into a contiguous sparse image representation
-    /// and this method returns the requested bytes from the current position.
+    /// Reads bytes from the sparse image stream into the provided buffer.
+    /// <para>从稀疏镜像流读取字节到提供的缓冲区。</para>
     /// </summary>
-    /// <param name="buffer">Destination buffer to receive data.</param>
-    /// <param name="offset">Offset in the buffer to start writing (int).</param>
-    /// <param name="count">Maximum number of bytes to read (int).</param>
-    /// <returns>The number of bytes actually read.</returns>
+    /// <param name="buffer">Destination buffer to receive data. <para>接收数据的目标缓冲区。</para></param>
+    /// <param name="offset">Offset in the buffer to start writing. <para>缓冲区中的起始写入偏移。</para></param>
+    /// <param name="count">Maximum number of bytes to read. <para>最大读取字节数。</para></param>
+    /// <returns>The number of bytes actually read. <para>实际读取的字节数。</para></returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
         if (_position >= _totalByteLength) return 0;
@@ -369,6 +381,12 @@ public class SparseImageStream : Stream
         return totalRead;
     }
 
+    /// <summary>
+    /// Finds the section that contains the specified byte offset using binary search.
+    /// <para>使用二分查找定位包含指定字节偏移的区段。</para>
+    /// </summary>
+    /// <param name="pos">The byte offset to locate. <para>要定位的字节偏移。</para></param>
+    /// <returns>The <see cref="Section"/> containing the offset. <para>包含该偏移的 Section。</para></returns>
     private Section FindSectionAtOffset(long pos)
     {
         int low = 0, high = _sections.Count - 1;
@@ -394,11 +412,12 @@ public class SparseImageStream : Stream
     }
 
     /// <summary>
-    /// Seek to a specific position within the generated sparse image stream.
+    /// Seeks to a specific position within the generated sparse image stream.
+    /// <para>在生成的稀疏镜像流中定位到指定位置。</para>
     /// </summary>
-    /// <param name="offset">Offset to seek to relative to <paramref name="origin"/> (long).</param>
-    /// <param name="origin">Reference point used to obtain the new position (<see cref="SeekOrigin"/>).</param>
-    /// <returns>The new position within the stream (long).</returns>
+    /// <param name="offset">Offset to seek to relative to <paramref name="origin"/>. <para>相对于 origin 的定位偏移。</para></param>
+    /// <param name="origin">Reference point used to obtain the new position. <para>用于获取新位置的参考点。</para></param>
+    /// <returns>The new position within the stream. <para>流中的新位置。</para></returns>
     public override long Seek(long offset, SeekOrigin origin)
     {
         switch (origin)
@@ -411,45 +430,37 @@ public class SparseImageStream : Stream
         return _position;
     }
 
-    /// <summary>Indicates whether this stream supports reading. Always true.</summary>
+    /// <summary>Indicates whether this stream supports reading. Always true. <para>指示此流是否支持读取。始终为 true。</para></summary>
     public override bool CanRead => true;
 
-    /// <summary>Indicates whether this stream supports seeking. Always true.</summary>
+    /// <summary>Indicates whether this stream supports seeking. Always true. <para>指示此流是否支持定位。始终为 true。</para></summary>
     public override bool CanSeek => true;
 
-    /// <summary>Indicates whether this stream supports writing. Always false.</summary>
+    /// <summary>Indicates whether this stream supports writing. Always false. <para>指示此流是否支持写入。始终为 false。</para></summary>
     public override bool CanWrite => false;
 
-    /// <summary>Gets the total length, in bytes, of the generated sparse image stream.</summary>
+    /// <summary>Gets the total length, in bytes, of the generated sparse image stream. <para>获取生成的稀疏镜像流的总字节长度。</para></summary>
     public override long Length => _totalByteLength;
 
-    /// <summary>Gets or sets the current position within the generated sparse image stream.</summary>
+    /// <summary>Gets or sets the current position within the generated sparse image stream. <para>获取或设置生成的稀疏镜像流中的当前位置。</para></summary>
     public override long Position { get => _position; set => Seek(value, SeekOrigin.Begin); }
 
-    /// <summary>Flush has no effect for read-only stream.</summary>
+    /// <summary>Flush has no effect for read-only stream. <para>刷新对只读流无效。</para></summary>
     public override void Flush() { }
 
-    /// <summary>Setting length is not supported for this read-only stream.</summary>
-    /// <param name="value">Not used.</param>
-    public override void SetLength(long value)
-    {
-        throw new NotSupportedException();
-    }
+    /// <summary>Setting length is not supported for this read-only stream. <para>此只读流不支持设置长度。</para></summary>
+    public override void SetLength(long value) => throw new NotSupportedException();
 
-    /// <summary>Writing is not supported for this read-only stream.</summary>
-    /// <param name="buffer">Not used.</param>
-    /// <param name="offset">Not used.</param>
-    /// <param name="count">Not used.</param>
-    public override void Write(byte[] buffer, int offset, int count)
-    {
-        throw new NotSupportedException();
-    }
+    /// <summary>Writing is not supported for this read-only stream. <para>此只读流不支持写入。</para></summary>
+    public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
 
     /// <summary>
-    /// Dispose managed resources used by the stream instance.
+    /// Disposes managed resources used by the stream instance.
     /// If this stream owns the underlying <see cref="SparseFile"/>, it will be disposed.
+    /// <para>释放流实例使用的托管资源。
+    /// 如果此流拥有底层 SparseFile，则一并释放。</para>
     /// </summary>
-    /// <param name="disposing">True when called from <see cref="Dispose"/>.</param>
+    /// <param name="disposing">True when called from <see cref="Dispose"/>. <para>从 Dispose 调用时为 true。</para></param>
     protected override void Dispose(bool disposing)
     {
         if (disposing)
@@ -457,95 +468,5 @@ public class SparseImageStream : Stream
             _ownedFile?.Dispose();
         }
         base.Dispose(disposing);
-    }
-
-    /// <summary>
-    /// Internal sub-provider used to expose a slice of an existing <see cref="ISparseDataProvider"/>.
-    /// This class delegates reads to the parent provider with an added offset and length limit.
-    /// </summary>
-    private class SubDataProvider : ISparseDataProvider
-    {
-        /// <summary>Parent data provider to delegate reads to.</summary>
-        private readonly ISparseDataProvider parent;
-        /// <summary>Byte offset within the parent provider where this sub-view starts (long).</summary>
-        private readonly long offset;
-        /// <summary>Length in bytes of this sub-view (long).</summary>
-        private readonly long length;
-
-        /// <summary>
-        /// Create a new <see cref="SubDataProvider"/> that represents a sub-range of <paramref name="parent"/>.
-        /// </summary>
-        /// <param name="parent">Parent data provider to wrap.</param>
-        /// <param name="offset">Byte offset within the parent where the sub-range begins (long).</param>
-        /// <param name="length">Length in bytes of the sub-range (long).</param>
-        public SubDataProvider(ISparseDataProvider parent, long offset, long length)
-        {
-            this.parent = parent;
-            this.offset = offset;
-            this.length = length;
-        }
-
-        /// <summary>
-        /// Gets the total length, in bytes, of the sub-range exposed by this provider.
-        /// </summary>
-        public long Length => length;
-
-        /// <summary>
-        /// Read bytes into a byte array from the sub-range.
-        /// </summary>
-        /// <param name="inOffset">Byte offset relative to the sub-range to begin reading (long).</param>
-        /// <param name="buffer">Destination buffer to receive bytes.</param>
-        /// <param name="bufferOffset">Offset in the destination buffer to start writing (int).</param>
-        /// <param name="count">Maximum number of bytes to read (int).</param>
-        /// <returns>The number of bytes actually read.</returns>
-        public int Read(long inOffset, byte[] buffer, int bufferOffset, int count)
-        {
-            return parent.Read(offset + inOffset, buffer, bufferOffset, (int)Math.Min(count, length - inOffset));
-        }
-
-        /// <summary>
-        /// Read bytes into a <see cref="Span{Byte}"/> from the sub-range.
-        /// </summary>
-        /// <param name="inOffset">Byte offset relative to the sub-range to begin reading (long).</param>
-        /// <param name="buffer">Span that will receive the data.</param>
-        /// <returns>The number of bytes actually read.</returns>
-        public int Read(long inOffset, Span<byte> buffer)
-        {
-            return parent.Read(offset + inOffset, buffer.Slice(0, (int)Math.Min(buffer.Length, length - inOffset)));
-        }
-
-        /// <summary>
-        /// Writing is not supported for this sub-provider.
-        /// </summary>
-        /// <param name="stream">Not used.</param>
-        public void WriteTo(Stream stream)
-        {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>
-        /// Asynchronous writing is not supported for this sub-provider.
-        /// </summary>
-        /// <param name="stream">Not used.</param>
-        /// <param name="cancellationToken">Not used.</param>
-        /// <returns>Never returns; always throws <see cref="NotSupportedException"/>.</returns>
-        public Task WriteToAsync(Stream stream, CancellationToken cancellationToken = default)
-        {
-            throw new NotSupportedException();
-        }
-
-        /// <summary>Dispose is a no-op for the sub-provider.</summary>
-        public void Dispose() { }
-
-        /// <summary>
-        /// Create a nested sub-provider relative to this sub-range.
-        /// </summary>
-        /// <param name="subOffset">Offset relative to this sub-range (long).</param>
-        /// <param name="subLength">Length in bytes for the nested sub-range (long).</param>
-        /// <returns>A new <see cref="SubDataProvider"/> representing the nested slice.</returns>
-        public ISparseDataProvider GetSubProvider(long subOffset, long subLength)
-        {
-            return new SubDataProvider(parent, offset + subOffset, subLength);
-        }
     }
 }

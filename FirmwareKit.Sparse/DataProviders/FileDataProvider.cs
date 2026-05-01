@@ -1,51 +1,50 @@
-﻿using Microsoft.Win32.SafeHandles;
-
 namespace FirmwareKit.Sparse.DataProviders;
 
 /// <summary>
 /// Provides access to a region of a file as an <see cref="ISparseDataProvider"/>.
-/// This implementation reads from a file on disk starting at a given offset and
-/// exposes a fixed-length view over that data.
+/// Reads from a file on disk starting at a given offset and exposes a fixed-length view.
+/// <para>提供对文件区域的访问，实现 ISparseDataProvider 接口。
+/// 从磁盘上的文件读取数据，从给定偏移开始，暴露固定长度的视图。</para>
 /// </summary>
 public class FileDataProvider : ISparseDataProvider
 {
-    /// <summary>Path to the source file (string).</summary>
-    private readonly string filePath;
-    /// <summary>Byte offset within the file where the provider view begins (long).</summary>
-    private readonly long offset;
-    /// <summary>Length in bytes of the provider view (long).</summary>
-    private readonly long length;
+    private readonly string _filePath;
+    private readonly long _offset;
+    private readonly long _length;
 
     /// <summary>
-    /// Initialize a new <see cref="FileDataProvider"/> for the given file segment.
+    /// Initializes a new <see cref="FileDataProvider"/> for the given file segment.
+    /// <para>为给定的文件段初始化新的 FileDataProvider。</para>
     /// </summary>
-    /// <param name="filePath">Path to the source file on disk (string).</param>
-    /// <param name="offset">Byte offset within the file where the segment starts (long).</param>
-    /// <param name="length">Number of bytes exposed by this provider (long).</param>
+    /// <param name="filePath">Path to the source file on disk. <para>磁盘上源文件的路径。</para></param>
+    /// <param name="offset">Byte offset within the file where the segment starts. <para>文件中段起始的字节偏移。</para></param>
+    /// <param name="length">Number of bytes exposed by this provider. <para>此提供程序暴露的字节数。</para></param>
     public FileDataProvider(string filePath, long offset, long length)
     {
-        this.filePath = filePath;
-        this.offset = offset;
-        this.length = length;
+        _filePath = filePath;
+        _offset = offset;
+        _length = length;
     }
 
     /// <summary>
     /// Gets the total length, in bytes, of the data exposed by this provider.
+    /// <para>获取此提供程序暴露的数据总字节长度。</para>
     /// </summary>
-    public long Length => length;
+    public long Length => _length;
 
     /// <summary>
-    /// Synchronously write the provider's data range to the specified stream.
+    /// Synchronously writes the provider's data range to the specified stream.
+    /// <para>同步将提供程序的数据范围写入指定流。</para>
     /// </summary>
-    /// <param name="stream">Destination stream to write the data to.</param>
+    /// <param name="stream">Destination stream to write the data to. <para>要写入数据的目标流。</para></param>
     public void WriteTo(Stream stream)
     {
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
+        using var fs = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
         var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(1024 * 1024);
         try
         {
-            var remaining = length;
-            fs.Seek(offset, SeekOrigin.Begin);
+            var remaining = _length;
+            fs.Seek(_offset, SeekOrigin.Begin);
 
             while (remaining > 0)
             {
@@ -67,23 +66,24 @@ public class FileDataProvider : ISparseDataProvider
     }
 
     /// <summary>
-    /// Asynchronously write the provider's data range to the specified stream.
+    /// Asynchronously writes the provider's data range to the specified stream.
+    /// <para>异步将提供程序的数据范围写入指定流。</para>
     /// </summary>
-    /// <param name="stream">Destination stream to write the data to.</param>
-    /// <param name="cancellationToken">Cancellation token for the asynchronous operation.</param>
-    /// <returns>A task that completes when the write finishes.</returns>
+    /// <param name="stream">Destination stream to write the data to. <para>要写入数据的目标流。</para></param>
+    /// <param name="cancellationToken">Cancellation token for the asynchronous operation. <para>异步操作的取消令牌。</para></param>
+    /// <returns>A task that completes when the write finishes. <para>写入完成时结束的任务。</para></returns>
     public async Task WriteToAsync(Stream stream, CancellationToken cancellationToken = default)
     {
 #if NET6_0_OR_GREATER
-        await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await using var fs = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous | FileOptions.SequentialScan);
 #else
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
+        using var fs = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
 #endif
         var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(1024 * 1024);
         try
         {
-            var remaining = length;
-            fs.Seek(offset, SeekOrigin.Begin);
+            var remaining = _length;
+            fs.Seek(_offset, SeekOrigin.Begin);
 
             while (remaining > 0)
             {
@@ -105,57 +105,60 @@ public class FileDataProvider : ISparseDataProvider
     }
 
     /// <summary>
-    /// Read data from the provider into a byte array.
+    /// Reads data from the provider into a byte array buffer.
+    /// <para>从提供程序读取数据到字节数组缓冲区。</para>
     /// </summary>
-    /// <param name="inOffset">Byte offset relative to the provider's start to read from (long).</param>
-    /// <param name="buffer">Destination buffer to receive bytes.</param>
-    /// <param name="bufferOffset">Offset in the destination buffer to start writing (int).</param>
-    /// <param name="count">Maximum number of bytes to read (int).</param>
-    /// <returns>The number of bytes actually read.</returns>
+    /// <param name="inOffset">Byte offset relative to the provider's start. <para>相对于提供程序起始的字节偏移。</para></param>
+    /// <param name="buffer">Destination buffer to receive bytes. <para>接收字节的目标缓冲区。</para></param>
+    /// <param name="bufferOffset">Offset in the destination buffer to start writing. <para>目标缓冲区中的起始写入偏移。</para></param>
+    /// <param name="count">Maximum number of bytes to read. <para>最大读取字节数。</para></param>
+    /// <returns>The number of bytes actually read. <para>实际读取的字节数。</para></returns>
     public int Read(long inOffset, byte[] buffer, int bufferOffset, int count)
     {
         return Read(inOffset, buffer.AsSpan(bufferOffset, count));
     }
 
     /// <summary>
-    /// Read data from the provider into a <see cref="Span{Byte}"/>.
+    /// Reads data from the provider into a <see cref="Span{Byte}"/>.
+    /// <para>从提供程序读取数据到 Span{Byte}。</para>
     /// </summary>
-    /// <param name="inOffset">Byte offset relative to the provider's start to read from (long).</param>
-    /// <param name="buffer">Span that receives the data.</param>
-    /// <returns>The number of bytes actually read.</returns>
+    /// <param name="inOffset">Byte offset relative to the provider's start. <para>相对于提供程序起始的字节偏移。</para></param>
+    /// <param name="buffer">Span that receives the data. <para>接收数据的 Span。</para></param>
+    /// <returns>The number of bytes actually read. <para>实际读取的字节数。</para></returns>
     public int Read(long inOffset, Span<byte> buffer)
     {
-        if (inOffset >= length)
+        if (inOffset >= _length)
         {
             return 0;
         }
 
-        var toRead = (int)Math.Min(buffer.Length, length - inOffset);
+        var toRead = (int)Math.Min(buffer.Length, _length - inOffset);
 #if NET6_0_OR_GREATER
-        using SafeFileHandle handle = File.OpenHandle(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.RandomAccess);
-        System.IO.RandomAccess.Read(handle, buffer.Slice(0, toRead), offset + inOffset);
+        using Microsoft.Win32.SafeHandles.SafeFileHandle handle = File.OpenHandle(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, FileOptions.RandomAccess);
+        System.IO.RandomAccess.Read(handle, buffer.Slice(0, toRead), _offset + inOffset);
         return toRead;
 #else
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.RandomAccess);
-        fs.Seek(offset + inOffset, SeekOrigin.Begin);
+        using var fs = new FileStream(_filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.RandomAccess);
+        fs.Seek(_offset + inOffset, SeekOrigin.Begin);
         return fs.Read(buffer.Slice(0, toRead));
 #endif
     }
 
     /// <summary>
-    /// Create a sub-provider that represents a sub-range of this provider.
+    /// Creates a sub-provider that represents a sub-range of this provider.
+    /// <para>创建表示此提供程序子范围的子提供程序。</para>
     /// </summary>
-    /// <param name="subOffset">Byte offset relative to this provider's start for the sub-range (long).</param>
-    /// <param name="subLength">Length in bytes of the sub-range (long).</param>
-    /// <returns>An <see cref="ISparseDataProvider"/> for the requested sub-range.</returns>
+    /// <param name="subOffset">Byte offset relative to this provider's start. <para>相对于此提供程序起始的字节偏移。</para></param>
+    /// <param name="subLength">Length in bytes of the sub-range. <para>子范围的字节长度。</para></param>
+    /// <returns>An <see cref="ISparseDataProvider"/> for the requested sub-range. <para>请求子范围的 ISparseDataProvider。</para></returns>
     public ISparseDataProvider GetSubProvider(long subOffset, long subLength)
     {
-        return new FileDataProvider(filePath, offset + subOffset, subLength);
+        return new FileDataProvider(_filePath, _offset + subOffset, subLength);
     }
 
     /// <summary>
-    /// Release any resources held by the provider. This provider does not hold persistent
-    /// resources and Dispose is a no-op.
+    /// Releases any resources held by the provider. This provider does not hold persistent resources.
+    /// <para>释放提供程序持有的所有资源。此提供程序不持有持久资源。</para>
     /// </summary>
     public void Dispose() { }
 }

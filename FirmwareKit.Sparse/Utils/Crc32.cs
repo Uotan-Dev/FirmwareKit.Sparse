@@ -2,17 +2,16 @@ namespace FirmwareKit.Sparse.Utils;
 
 using Force.Crc32;
 using System.Buffers;
-using System.Buffers.Binary;
 
 /// <summary>
 /// CRC32 utility class for checksum calculation using Crc32.NET.
 /// Optimized for AOT compatibility with minimal allocations.
+/// <para>使用 Crc32.NET 进行校验和计算的 CRC32 工具类。针对 AOT 兼容性优化，最小化内存分配。</para>
 /// </summary>
 public static class Crc32
 {
     private const int BufferSize = 8192;
 
-    // 优化：使用 ThreadLocal 静态缓冲区，减少对 ArrayPool 的频繁调用
     private static readonly ThreadLocal<byte[]> LocalBuffer = new ThreadLocal<byte[]>(() => new byte[BufferSize]);
 
     private static byte[] GetLocalBuffer()
@@ -22,9 +21,10 @@ public static class Crc32
 
     /// <summary>
     /// Calculates the CRC32 checksum of the given data range.
+    /// <para>计算给定数据范围的 CRC32 校验和。</para>
     /// </summary>
-    /// <param name="data">The data range.</param>
-    /// <returns>The calculated CRC32 checksum.</returns>
+    /// <param name="data">The data range. <para>数据范围。</para></param>
+    /// <returns>The calculated CRC32 checksum. <para>计算得到的 CRC32 校验和。</para></returns>
     public static uint Calculate(ReadOnlySpan<byte> data)
     {
         if (data.IsEmpty)
@@ -32,7 +32,6 @@ public static class Crc32
             return 0;
         }
 
-        // 优化：小数据使用 ThreadLocal 本地缓冲区，避免 ArrayPool 开销
         var localBuffer = GetLocalBuffer();
         if (data.Length <= BufferSize)
         {
@@ -40,7 +39,6 @@ public static class Crc32
             return Crc32Algorithm.Compute(localBuffer, 0, data.Length);
         }
 
-        // 只有超过 BufferSize 才租用 ArrayPool
         var poolBuffer = ArrayPool<byte>.Shared.Rent(data.Length);
         try
         {
@@ -55,12 +53,13 @@ public static class Crc32
 
     /// <summary>
     /// Updates the CRC32 checksum with the given data using incremental calculation.
+    /// <para>使用增量计算方式，用给定数据更新 CRC32 校验和。</para>
     /// </summary>
-    /// <param name="crc">The current CRC32 value.</param>
-    /// <param name="data">The data byte array.</param>
-    /// <param name="offset">The starting offset in the array.</param>
-    /// <param name="length">The length.</param>
-    /// <returns>The updated CRC32 value.</returns>
+    /// <param name="crc">The current CRC32 value. <para>当前的 CRC32 值。</para></param>
+    /// <param name="data">The data byte array. <para>数据字节数组。</para></param>
+    /// <param name="offset">The starting offset in the array. <para>数组中的起始偏移量。</para></param>
+    /// <param name="length">The length of data to process. <para>要处理的数据长度。</para></param>
+    /// <returns>The updated CRC32 value. <para>更新后的 CRC32 值。</para></returns>
     public static uint Update(uint crc, byte[] data, int offset = 0, int length = -1)
     {
         if (length == -1)
@@ -78,10 +77,11 @@ public static class Crc32
 
     /// <summary>
     /// Updates the CRC32 checksum with the given data range using incremental calculation.
+    /// <para>使用增量计算方式，用给定数据范围更新 CRC32 校验和。</para>
     /// </summary>
-    /// <param name="crc">The current CRC32 value.</param>
-    /// <param name="data">The data range.</param>
-    /// <returns>The updated CRC32 value.</returns>
+    /// <param name="crc">The current CRC32 value. <para>当前的 CRC32 值。</para></param>
+    /// <param name="data">The data range. <para>数据范围。</para></param>
+    /// <returns>The updated CRC32 value. <para>更新后的 CRC32 值。</para></returns>
     public static uint Update(uint crc, ReadOnlySpan<byte> data)
     {
         if (data.IsEmpty)
@@ -89,7 +89,6 @@ public static class Crc32
             return crc;
         }
 
-        // 优化：小数据使用 ThreadLocal 本地缓冲区
         var localBuffer = GetLocalBuffer();
         if (data.Length <= BufferSize)
         {
@@ -111,7 +110,11 @@ public static class Crc32
 
     /// <summary>
     /// Updates the CRC32 checksum with zero bytes (simulating a gap or sparse area).
+    /// <para>用零字节更新 CRC32 校验和（模拟间隙或稀疏区域）。</para>
     /// </summary>
+    /// <param name="crc">The current CRC32 value. <para>当前的 CRC32 值。</para></param>
+    /// <param name="length">Number of zero bytes to process. <para>要处理的零字节数。</para></param>
+    /// <returns>The updated CRC32 value. <para>更新后的 CRC32 值。</para></returns>
     public static uint UpdateZero(uint crc, long length)
     {
         if (length <= 0)
@@ -119,7 +122,6 @@ public static class Crc32
             return crc;
         }
 
-        // 优化：使用 ThreadLocal 本地缓冲区，避免每次调用 ArrayPool
         var localBuffer = GetLocalBuffer();
         var buffer = localBuffer;
         if (buffer.Length < BufferSize)
@@ -152,7 +154,12 @@ public static class Crc32
 
     /// <summary>
     /// Updates the CRC32 checksum with a repeated 4-byte value.
+    /// <para>用重复的 4 字节值更新 CRC32 校验和。</para>
     /// </summary>
+    /// <param name="crc">The current CRC32 value. <para>当前的 CRC32 值。</para></param>
+    /// <param name="value">The 4-byte pattern to repeat. <para>要重复的 4 字节模式。</para></param>
+    /// <param name="totalLength">Total number of bytes to process. <para>要处理的总字节数。</para></param>
+    /// <returns>The updated CRC32 value. <para>更新后的 CRC32 值。</para></returns>
     public static uint UpdateRepeated(uint crc, uint value, long totalLength)
     {
         if (totalLength <= 0)
@@ -160,7 +167,6 @@ public static class Crc32
             return crc;
         }
 
-        // 优化：使用 ThreadLocal 本地缓冲区
         var localBuffer = GetLocalBuffer();
         var block = localBuffer;
         if (block.Length < BufferSize)
@@ -204,11 +210,15 @@ public static class Crc32
 
     /// <summary>
     /// Returns the initial CRC32 value.
+    /// <para>返回 CRC32 的初始值。</para>
     /// </summary>
     public static uint Begin() => 0;
 
     /// <summary>
     /// Finalizes the CRC32 calculation.
+    /// <para>完成 CRC32 计算。</para>
     /// </summary>
+    /// <param name="crc">The current CRC32 value. <para>当前的 CRC32 值。</para></param>
+    /// <returns>The finalized CRC32 value. <para>完成后的 CRC32 值。</para></returns>
     public static uint Finish(uint crc) => crc;
 }

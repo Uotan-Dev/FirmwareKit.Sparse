@@ -1,10 +1,8 @@
 using FirmwareKit.Sparse.Core;
-using FirmwareKit.Sparse.IO;
 using FirmwareKit.Sparse.Models;
 using FirmwareKit.Sparse.Streams;
 using FirmwareKit.Sparse.Utils;
 using System.Buffers.Binary;
-using System.Linq;
 using System.Runtime.InteropServices;
 using Xunit;
 
@@ -226,7 +224,7 @@ public class SparseFileIntegrationTests
         sparseFile.WriteToStream(expected, sparse: true);
 
         using var callbackOut = new MemoryStream();
-        sparseFile.WriteWithCallback((b,l) => { if(b!=null) callbackOut.Write(b,0,l); return 0; }, sparse: true);
+        sparseFile.WriteWithCallback((b, l) => { if (b != null) callbackOut.Write(b, 0, l); return 0; }, sparse: true);
 
         Assert.Equal(expected.ToArray(), callbackOut.ToArray());
     }
@@ -239,7 +237,7 @@ public class SparseFileIntegrationTests
         var parts = sparseFile.Resparse(BlockSize * 50).ToList();
         Assert.True(parts.Count >= 2);
         var combined = new MemoryStream();
-        foreach(var p in parts) p.WriteRawToStream(combined);
+        foreach (var p in parts) p.WriteRawToStream(combined);
         Assert.Equal((long)100 * BlockSize, combined.Length);
     }
 
@@ -267,40 +265,40 @@ public class SparseFileIntegrationTests
     public void GetResparsedStreams_ProducesStreamsForEachSplit()
     {
         using var sparseFile = new SparseFile(BlockSize, BlockSize * 10);
-        for(int i=0;i<10;i++) sparseFile.AddRawChunk(new byte[BlockSize]);
-        var streams = sparseFile.GetResparsedStreams(BlockSize*30);
-        int count=0;
-        foreach(var s in streams)
+        for (int i = 0; i < 10; i++) sparseFile.AddRawChunk(new byte[BlockSize]);
+        var streams = sparseFile.GetResparsedStreams(BlockSize * 30);
+        int count = 0;
+        foreach (var s in streams)
         {
             Assert.True(s.CanRead);
             count++;
         }
-        Assert.True(count>=1);
+        Assert.True(count >= 1);
     }
 
     [Fact]
     public void SparseStream_ReadsRawAndFillAndDontCare()
     {
         using var sparseFile = new SparseFile(BlockSize, BlockSize * 3);
-        sparseFile.AddRawChunk(Enumerable.Range(0,(int)BlockSize).Select(i=>(byte)i).ToArray());
+        sparseFile.AddRawChunk(Enumerable.Range(0, (int)BlockSize).Select(i => (byte)i).ToArray());
         sparseFile.AddFillChunk(0xAABBCCDD, BlockSize);
         sparseFile.AddDontCareChunk(BlockSize);
         using var ss = new SparseStream(sparseFile);
         ss.Position = 0;
-        var buf = new byte[BlockSize*3];
-        var read = ss.Read(buf,0,buf.Length);
+        var buf = new byte[BlockSize * 3];
+        var read = ss.Read(buf, 0, buf.Length);
         Assert.Equal(buf.Length, read);
         // fill value is written little-endian; byte offset 3 of the fill block should be 0xAA
-        Assert.Equal((byte)0xAA, buf[BlockSize+3]);
+        Assert.Equal((byte)0xAA, buf[BlockSize + 3]);
     }
 
     [Fact]
     public void WriteRawToStream_SparseMode_SeeksInsteadOfWrites()
     {
         using var sparseFile = new SparseFile(BlockSize, BlockSize * 2);
-        sparseFile.AddDontCareChunk(BlockSize*2);
+        sparseFile.AddDontCareChunk(BlockSize * 2);
         using var ms = new MemoryStream();
-        sparseFile.WriteRawToStream(ms, sparseMode:true);
+        sparseFile.WriteRawToStream(ms, sparseMode: true);
         // when writing to a seekable stream the seek may expand length
         Assert.Equal(ms.Position, ms.Length);
         Assert.True(ms.Length >= BlockSize * 2);

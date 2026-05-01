@@ -1,15 +1,18 @@
 namespace FirmwareKit.Sparse.Utils;
 
 /// <summary>
-/// Sparse image utility tools.
+/// Sparse image utility tools providing file info, comparison, conversion verification,
+/// test image creation, and data extraction capabilities.
+/// <para>稀疏镜像实用工具，提供文件信息、比较、转换验证、测试镜像创建和数据提取功能。</para>
 /// </summary>
 public static class SparseImageUtils
 {
     /// <summary>
-    /// Gets detailed information about a file.
+    /// Gets detailed information about a file, including sparse metadata if applicable.
+    /// <para>获取文件的详细信息，包括适用的稀疏元数据。</para>
     /// </summary>
-    /// <param name="filePath">The file path.</param>
-    /// <returns>A <see cref="FileInfoResult"/> containing file details.</returns>
+    /// <param name="filePath">The file path. <para>文件路径。</para></param>
+    /// <returns>A <see cref="FileInfoResult"/> containing file details. <para>包含文件详细信息的 FileInfoResult。</para></returns>
     public static FileInfoResult GetFileInfo(string filePath)
     {
         if (!File.Exists(filePath))
@@ -51,10 +54,11 @@ public static class SparseImageUtils
 
     /// <summary>
     /// Compares the size and type of two files.
+    /// <para>比较两个文件的大小和类型。</para>
     /// </summary>
-    /// <param name="file1">The path to the first file.</param>
-    /// <param name="file2">The path to the second file.</param>
-    /// <returns>A <see cref="FileComparisonResult"/> containing the comparison results.</returns>
+    /// <param name="file1">The path to the first file. <para>第一个文件的路径。</para></param>
+    /// <param name="file2">The path to the second file. <para>第二个文件的路径。</para></param>
+    /// <returns>A <see cref="FileComparisonResult"/> containing the comparison results. <para>包含比较结果的 FileComparisonResult。</para></returns>
     public static FileComparisonResult CompareFiles(string file1, string file2)
     {
         if (!File.Exists(file1))
@@ -81,7 +85,7 @@ public static class SparseImageUtils
         var isSparse1 = SparseImageValidator.IsSparseImage(file1);
         var isSparse2 = SparseImageValidator.IsSparseImage(file2);
 
-        var result = new FileComparisonResult
+        return new FileComparisonResult
         {
             Success = true,
             File1Info = new FileBasicInfo
@@ -99,16 +103,15 @@ public static class SparseImageUtils
             SizeMatches = info1.Length == info2.Length,
             TypeMatches = isSparse1 == isSparse2
         };
-
-        return result;
     }
 
     /// <summary>
     /// Verifies the consistency of files before and after conversion.
+    /// <para>验证转换前后文件的一致性。</para>
     /// </summary>
-    /// <param name="originalFile">The path to the original file.</param>
-    /// <param name="convertedFile">The path to the converted file.</param>
-    /// <returns>A <see cref="ConversionVerificationResult"/> containing the verification results.</returns>
+    /// <param name="originalFile">The path to the original file. <para>原始文件的路径。</para></param>
+    /// <param name="convertedFile">The path to the converted file. <para>转换后文件的路径。</para></param>
+    /// <returns>A <see cref="ConversionVerificationResult"/> containing the verification results. <para>包含验证结果的 ConversionVerificationResult。</para></returns>
     public static ConversionVerificationResult VerifyConversion(string originalFile, string convertedFile)
     {
         try
@@ -135,12 +138,13 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Creates a test sparse image.
+    /// Creates a test sparse image with sample data chunks.
+    /// <para>创建包含示例数据块的测试稀疏镜像。</para>
     /// </summary>
-    /// <param name="outputPath">The output path.</param>
-    /// <param name="sizeInMB">The size in megabytes (MB).</param>
-    /// <param name="blockSize">The block size.</param>
-    /// <returns>A <see cref="TestImageCreationResult"/> containing the result of the test image creation.</returns>
+    /// <param name="outputPath">The output path. <para>输出路径。</para></param>
+    /// <param name="sizeInMB">The size in megabytes (MB). <para>大小（兆字节）。</para></param>
+    /// <param name="blockSize">The block size. <para>块大小。</para></param>
+    /// <returns>A <see cref="TestImageCreationResult"/> containing the result of the test image creation. <para>包含测试镜像创建结果的 TestImageCreationResult。</para></returns>
     public static TestImageCreationResult CreateTestSparseImage(string outputPath, uint sizeInMB = 100, uint blockSize = 4096)
     {
         try
@@ -178,12 +182,13 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Extracts valid data from a sparse image.
+    /// Extracts valid data from a sparse image starting at the specified partition offset.
+    /// <para>从稀疏镜像中提取从指定分区偏移开始的有效数据。</para>
     /// </summary>
-    /// <param name="inputPath">The input path.</param>
-    /// <param name="outputPath">The output path.</param>
-    /// <param name="partitionOffset">The partition offset.</param>
-    /// <returns>A <see cref="DataExtractionResult"/> containing the result of the data extraction.</returns>
+    /// <param name="inputPath">The input sparse image path. <para>输入稀疏镜像路径。</para></param>
+    /// <param name="outputPath">The output binary data path. <para>输出二进制数据路径。</para></param>
+    /// <param name="partitionOffset">The partition offset in bytes. <para>分区偏移（字节）。</para></param>
+    /// <returns>A <see cref="DataExtractionResult"/> containing the result of the data extraction. <para>包含数据提取结果的 DataExtractionResult。</para></returns>
     public static DataExtractionResult ExtractValidData(string inputPath, string outputPath, long partitionOffset)
     {
         try
@@ -236,15 +241,6 @@ public static class SparseImageUtils
                                 dataExtracted = true;
                             }
                             break;
-
-                        case (ushort)ChunkType.DontCare:
-                            break;
-
-                        case (ushort)ChunkType.Crc32:
-                            break;
-
-                        default:
-                            break;
                     }
                 }
 
@@ -275,15 +271,16 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Extract data from a RAW chunk and write it to the provided output stream.
+    /// Extracts data from a RAW chunk and writes it to the provided output stream.
+    /// <para>从 RAW 数据块中提取数据并写入提供的输出流。</para>
     /// </summary>
-    /// <param name="chunk">The <see cref="SparseChunk"/> to extract data from.</param>
-    /// <param name="currentBlock">The block index where this chunk starts (uint).</param>
-    /// <param name="startBlock">The first block index to include from the partition offset (uint).</param>
-    /// <param name="offsetInBlock">Byte offset within the start block (long).</param>
-    /// <param name="blockSize">Size of a block in bytes (uint).</param>
-    /// <param name="outputStream">Stream to write extracted data into.</param>
-    /// <returns>The number of bytes written to <paramref name="outputStream"/>.</returns>
+    /// <param name="chunk">The <see cref="SparseChunk"/> to extract data from. <para>要提取数据的 SparseChunk。</para></param>
+    /// <param name="currentBlock">The block index where this chunk starts. <para>此数据块开始的块索引。</para></param>
+    /// <param name="startBlock">The first block index to include from the partition offset. <para>从分区偏移开始包含的第一个块索引。</para></param>
+    /// <param name="offsetInBlock">Byte offset within the start block. <para>起始块内的字节偏移。</para></param>
+    /// <param name="blockSize">Size of a block in bytes. <para>块的字节大小。</para></param>
+    /// <param name="outputStream">Stream to write extracted data into. <para>写入提取数据的流。</para></param>
+    /// <returns>The number of bytes written to <paramref name="outputStream"/>. <para>写入输出流的字节数。</para></returns>
     private static long ExtractRawChunkData(SparseChunk chunk, uint currentBlock, uint startBlock, long offsetInBlock, uint blockSize, Stream outputStream)
     {
         if (chunk.DataProvider == null)
@@ -326,15 +323,16 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Extract data from a FILL chunk, writing the repeated fill pattern to the output stream.
+    /// Extracts data from a FILL chunk, writing the repeated fill pattern to the output stream.
+    /// <para>从 FILL 数据块中提取数据，将重复的填充模式写入输出流。</para>
     /// </summary>
-    /// <param name="chunk">The <see cref="SparseChunk"/> representing the fill region.</param>
-    /// <param name="currentBlock">The block index where this chunk starts (uint).</param>
-    /// <param name="startBlock">The first block index to include from the partition offset (uint).</param>
-    /// <param name="offsetInBlock">Byte offset within the start block (long).</param>
-    /// <param name="blockSize">Size of a block in bytes (uint).</param>
-    /// <param name="outputStream">Stream to write the generated fill bytes into.</param>
-    /// <returns>The number of bytes written to <paramref name="outputStream"/>.</returns>
+    /// <param name="chunk">The <see cref="SparseChunk"/> representing the fill region. <para>表示填充区域的 SparseChunk。</para></param>
+    /// <param name="currentBlock">The block index where this chunk starts. <para>此数据块开始的块索引。</para></param>
+    /// <param name="startBlock">The first block index to include from the partition offset. <para>从分区偏移开始包含的第一个块索引。</para></param>
+    /// <param name="offsetInBlock">Byte offset within the start block. <para>起始块内的字节偏移。</para></param>
+    /// <param name="blockSize">Size of a block in bytes. <para>块的字节大小。</para></param>
+    /// <param name="outputStream">Stream to write the generated fill bytes into. <para>写入生成的填充字节的流。</para></param>
+    /// <returns>The number of bytes written to <paramref name="outputStream"/>. <para>写入输出流的字节数。</para></returns>
     private static long ExtractFillChunkData(SparseChunk chunk, uint currentBlock, uint startBlock, long offsetInBlock, uint blockSize, Stream outputStream)
     {
         var fillBytes = new byte[4];
@@ -365,12 +363,13 @@ public static class SparseImageUtils
     /// <summary>
     /// Extracts valid data and generates a corresponding CSV map.
     /// CSV format: [Index], File Offset (bytes), File Length (bytes), Device Offset (bytes), Device Length (bytes)
+    /// <para>提取有效数据并生成对应的 CSV 映射。CSV 格式：[索引], 文件偏移(字节), 文件长度(字节), 设备偏移(字节), 设备长度(字节)</para>
     /// </summary>
-    /// <param name="sparseImagePath">The path to the sparse image.</param>
-    /// <param name="binOutputPath">The binary output path.</param>
-    /// <param name="csvOutputPath">The CSV output path.</param>
-    /// <param name="partitionOffset">The partition offset.</param>
-    /// <returns>A <see cref="DataExtractionWithCsvResult"/> containing the result of the data extraction with CSV output.</returns>
+    /// <param name="sparseImagePath">The path to the sparse image. <para>稀疏镜像的路径。</para></param>
+    /// <param name="binOutputPath">The binary output path. <para>二进制输出路径。</para></param>
+    /// <param name="csvOutputPath">The CSV output path. <para>CSV 输出路径。</para></param>
+    /// <param name="partitionOffset">The partition offset. <para>分区偏移。</para></param>
+    /// <returns>A <see cref="DataExtractionWithCsvResult"/> containing the result of the data extraction with CSV output. <para>包含带 CSV 输出的数据提取结果的 DataExtractionWithCsvResult。</para></returns>
     public static DataExtractionWithCsvResult ExtractValidDataWithCsv(string sparseImagePath, string binOutputPath, string csvOutputPath, long partitionOffset)
     {
         try
@@ -413,83 +412,15 @@ public static class SparseImageUtils
                     switch (chunk.Header.ChunkType)
                     {
                         case (ushort)ChunkType.Raw:
-                            var skipBytes = 0L;
-                            var dataLength = (long)(chunk.Header.ChunkSize * blockSize);
-                            if (startBlockNumber >= chunkStartBlock && startBlockNumber < chunkEndBlock)
-                            {
-                                skipBytes = ((startBlockNumber - chunkStartBlock) * blockSize) + blockOffset;
-                                dataLength -= skipBytes;
-                            }
-                            else if (startBlockNumber < chunkStartBlock)
-                            {
-                                skipBytes = 0;
-                            }
-
-                            if (dataLength > 0 && chunk.DataProvider != null)
-                            {
-                                var chunkFileOffset = fileOffset;
-                                var sourceOffset = skipBytes;
-                                var lengthToCopy = Math.Min(dataLength, chunk.DataProvider.Length - sourceOffset);
-
-                                if (lengthToCopy > 0)
-                                {
-                                    var buffer = new byte[1024 * 1024];
-                                    long chunkRead = 0;
-                                    while (chunkRead < lengthToCopy)
-                                    {
-                                        var toRead = (int)Math.Min(buffer.Length, lengthToCopy - chunkRead);
-                                        var read = chunk.DataProvider.Read(sourceOffset + chunkRead, buffer, 0, toRead);
-                                        if (read <= 0)
-                                        {
-                                            break;
-                                        }
-
-                                        outputStream.Write(buffer, 0, read);
-                                        chunkRead += read;
-                                    }
-                                    fileOffset += lengthToCopy;
-                                    var deviceOffset = Math.Max(partitionOffset, (long)chunkStartBlock * blockSize);
-                                    csvRecords.Add($"{sequenceNumber},{chunkFileOffset},{lengthToCopy},{deviceOffset},{lengthToCopy}");
-                                    sequenceNumber++;
-                                    foundValidData = true;
-                                }
-                            }
+                            ProcessRawChunkForCsv(chunk, chunkStartBlock, chunkEndBlock,
+                                startBlockNumber, blockOffset, blockSize, outputStream,
+                                ref sequenceNumber, ref fileOffset, csvRecords, ref foundValidData);
                             break;
 
                         case (ushort)ChunkType.Fill:
-                            var fillBytes = new byte[4];
-                            BinaryPrimitives.WriteUInt32LittleEndian(fillBytes, chunk.FillValue);
-                            var fillDataLength = (long)(chunk.Header.ChunkSize * blockSize);
-                            var fillSkipBytes = 0L;
-                            if (startBlockNumber >= chunkStartBlock && startBlockNumber < chunkEndBlock)
-                            {
-                                fillSkipBytes = ((startBlockNumber - chunkStartBlock) * blockSize) + blockOffset;
-                                fillDataLength -= fillSkipBytes;
-                            }
-                            else if (startBlockNumber < chunkStartBlock)
-                            {
-                                fillSkipBytes = 0;
-                            }
-
-                            if (fillDataLength > 0)
-                            {
-                                var fillFileOffset = fileOffset;
-                                WriteFillData(outputStream, fillBytes, fillDataLength);
-                                fileOffset += fillDataLength;
-                                var fillDeviceOffset = Math.Max(partitionOffset, (long)chunkStartBlock * blockSize);
-                                csvRecords.Add($"{sequenceNumber},{fillFileOffset},{fillDataLength},{fillDeviceOffset},{fillDataLength}");
-                                sequenceNumber++;
-                                foundValidData = true;
-                            }
-                            break;
-
-                        case (ushort)ChunkType.DontCare:
-                            break;
-
-                        case (ushort)ChunkType.Crc32:
-                            break;
-
-                        default:
+                            ProcessFillChunkForCsv(chunk, chunkStartBlock, chunkEndBlock,
+                                startBlockNumber, blockOffset, blockSize, outputStream,
+                                ref sequenceNumber, ref fileOffset, csvRecords, ref foundValidData);
                             break;
                     }
                 }
@@ -524,20 +455,133 @@ public static class SparseImageUtils
     }
 
     /// <summary>
-    /// Write a repeated fill pattern to the output stream for the requested number of bytes.
+    /// Processes a RAW chunk for CSV extraction, writing data and recording CSV entries.
+    /// <para>处理 RAW 数据块的 CSV 提取，写入数据并记录 CSV 条目。</para>
     /// </summary>
-    /// <param name="outputStream">Stream to receive the fill bytes.</param>
-    /// <param name="fillPattern">Byte pattern (typically 4 bytes) that is repeated.</param>
-    /// <param name="totalBytes">Total number of bytes to write from the repeated pattern.</param>
+    private static void ProcessRawChunkForCsv(SparseChunk chunk, uint chunkStartBlock, uint chunkEndBlock,
+        long startBlockNumber, long blockOffset, uint blockSize, Stream outputStream,
+        ref int sequenceNumber, ref long fileOffset, List<string> csvRecords, ref bool foundValidData)
+    {
+        var skipBytes = 0L;
+        var dataLength = (long)(chunk.Header.ChunkSize * blockSize);
+        if (startBlockNumber >= chunkStartBlock && startBlockNumber < chunkEndBlock)
+        {
+            skipBytes = ((startBlockNumber - chunkStartBlock) * blockSize) + blockOffset;
+            dataLength -= skipBytes;
+        }
+        else if (startBlockNumber < chunkStartBlock)
+        {
+            skipBytes = 0;
+        }
+
+        if (dataLength > 0 && chunk.DataProvider != null)
+        {
+            var chunkFileOffset = fileOffset;
+            var sourceOffset = skipBytes;
+            var lengthToCopy = Math.Min(dataLength, chunk.DataProvider.Length - sourceOffset);
+
+            if (lengthToCopy > 0)
+            {
+                var buffer = new byte[1024 * 1024];
+                long chunkRead = 0;
+                while (chunkRead < lengthToCopy)
+                {
+                    var toRead = (int)Math.Min(buffer.Length, lengthToCopy - chunkRead);
+                    var read = chunk.DataProvider.Read(sourceOffset + chunkRead, buffer, 0, toRead);
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+
+                    outputStream.Write(buffer, 0, read);
+                    chunkRead += read;
+                }
+                fileOffset += lengthToCopy;
+                long deviceOffset;
+                if (startBlockNumber >= chunkStartBlock && startBlockNumber < chunkEndBlock)
+                {
+                    deviceOffset = (startBlockNumber * blockSize) + blockOffset;
+                }
+                else
+                {
+                    deviceOffset = (long)chunkStartBlock * blockSize;
+                }
+                csvRecords.Add($"{sequenceNumber},{chunkFileOffset},{lengthToCopy},{deviceOffset},{lengthToCopy}");
+                sequenceNumber++;
+                foundValidData = true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Processes a FILL chunk for CSV extraction, writing fill data and recording CSV entries.
+    /// <para>处理 FILL 数据块的 CSV 提取，写入填充数据并记录 CSV 条目。</para>
+    /// </summary>
+    private static void ProcessFillChunkForCsv(SparseChunk chunk, uint chunkStartBlock, uint chunkEndBlock,
+        long startBlockNumber, long blockOffset, uint blockSize, Stream outputStream,
+        ref int sequenceNumber, ref long fileOffset, List<string> csvRecords, ref bool foundValidData)
+    {
+        var fillBytes = new byte[4];
+        BinaryPrimitives.WriteUInt32LittleEndian(fillBytes, chunk.FillValue);
+        var fillDataLength = (long)(chunk.Header.ChunkSize * blockSize);
+        var fillSkipBytes = 0L;
+        if (startBlockNumber >= chunkStartBlock && startBlockNumber < chunkEndBlock)
+        {
+            fillSkipBytes = ((startBlockNumber - chunkStartBlock) * blockSize) + blockOffset;
+            fillDataLength -= fillSkipBytes;
+        }
+        else if (startBlockNumber < chunkStartBlock)
+        {
+            fillSkipBytes = 0;
+        }
+
+        if (fillDataLength > 0)
+        {
+            var fillFileOffset = fileOffset;
+            WriteFillData(outputStream, fillBytes, fillDataLength);
+            fileOffset += fillDataLength;
+            long fillDeviceOffset;
+            if (startBlockNumber >= chunkStartBlock && startBlockNumber < chunkEndBlock)
+            {
+                fillDeviceOffset = (startBlockNumber * blockSize) + blockOffset;
+            }
+            else
+            {
+                fillDeviceOffset = (long)chunkStartBlock * blockSize;
+            }
+            csvRecords.Add($"{sequenceNumber},{fillFileOffset},{fillDataLength},{fillDeviceOffset},{fillDataLength}");
+            sequenceNumber++;
+            foundValidData = true;
+        }
+    }
+
+    /// <summary>
+    /// Writes a repeated fill pattern to the output stream for the requested number of bytes.
+    /// <para>将重复的填充模式写入输出流，写入请求的字节数。</para>
+    /// </summary>
+    /// <param name="outputStream">Stream to receive the fill bytes. <para>接收填充字节的流。</para></param>
+    /// <param name="fillPattern">Byte pattern (typically 4 bytes) that is repeated. <para>重复的字节模式（通常为 4 字节）。</para></param>
+    /// <param name="totalBytes">Total number of bytes to write from the repeated pattern. <para>从重复模式写入的总字节数。</para></param>
     private static void WriteFillData(Stream outputStream, byte[] fillPattern, long totalBytes)
     {
-        var remainingBytes = totalBytes;
+        if (totalBytes <= 0 || fillPattern.Length == 0) return;
 
-        while (remainingBytes > 0)
+        const int bufferSize = 64 * 1024;
+        var buffer = new byte[bufferSize];
+        var patternLen = fillPattern.Length;
+
+        for (int i = 0; i < bufferSize; i += patternLen)
         {
-            var bytesToWrite = (int)Math.Min(remainingBytes, fillPattern.Length);
-            outputStream.Write(fillPattern, 0, bytesToWrite);
-            remainingBytes -= bytesToWrite;
+            var copyLen = Math.Min(patternLen, bufferSize - i);
+            Array.Copy(fillPattern, 0, buffer, i, copyLen);
+        }
+
+        var remaining = totalBytes;
+        while (remaining > 0)
+        {
+            var toWrite = (int)Math.Min(remaining, bufferSize);
+            outputStream.Write(buffer, 0, toWrite);
+            remaining -= toWrite;
         }
     }
 }

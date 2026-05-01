@@ -1,10 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Buffers.Binary;
 using FirmwareKit.Sparse.Core;
 using FirmwareKit.Sparse.Utils;
+using System.Buffers.Binary;
 using Xunit;
 
 namespace FirmwareKit.Sparse.IntegrationTests

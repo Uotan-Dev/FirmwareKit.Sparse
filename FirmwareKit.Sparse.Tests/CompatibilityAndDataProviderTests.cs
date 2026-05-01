@@ -1,10 +1,4 @@
-using System;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using FirmwareKit.Sparse.DataProviders;
-using FirmwareKit.Sparse.Utils;
 using Xunit;
 
 namespace FirmwareKit.Sparse.IntegrationTests

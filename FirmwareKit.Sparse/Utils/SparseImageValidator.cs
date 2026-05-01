@@ -2,14 +2,16 @@ namespace FirmwareKit.Sparse.Utils;
 
 /// <summary>
 /// Provides methods for validating and retrieving information from sparse image files.
+/// <para>提供验证和获取稀疏镜像文件信息的方法。</para>
 /// </summary>
 public static class SparseImageValidator
 {
     /// <summary>
     /// Validates a sparse image file by checking headers and chunk consistency.
+    /// <para>通过检查头部和数据块一致性来验证稀疏镜像文件。</para>
     /// </summary>
-    /// <param name="filePath">The absolute path to the sparse image file.</param>
-    /// <returns>A <see cref="ValidationResult"/> containing the detailed validation information.</returns>
+    /// <param name="filePath">The absolute path to the sparse image file. <para>稀疏镜像文件的绝对路径。</para></param>
+    /// <returns>A <see cref="ValidationResult"/> containing the detailed validation information. <para>包含详细验证信息的 ValidationResult。</para></returns>
     public static ValidationResult ValidateSparseImage(string filePath)
     {
         try
@@ -64,9 +66,10 @@ public static class SparseImageValidator
 
     /// <summary>
     /// Determines whether the specified file is a valid sparse image based on its magic number.
+    /// <para>根据魔数判断指定文件是否为有效的稀疏镜像。</para>
     /// </summary>
-    /// <param name="filePath">The path to the file to check.</param>
-    /// <returns><c>true</c> if the file is a valid sparse image; otherwise, <c>false</c>.</returns>
+    /// <param name="filePath">The path to the file to check. <para>要检查的文件路径。</para></param>
+    /// <returns><c>true</c> if the file is a valid sparse image; otherwise, <c>false</c>. <para>如果文件是有效的稀疏镜像则为 true；否则为 false。</para></returns>
     public static bool IsSparseImage(string filePath)
     {
         try
@@ -89,9 +92,10 @@ public static class SparseImageValidator
 
     /// <summary>
     /// Retrieves detailed metadata and compression information for a sparse image file.
+    /// <para>获取稀疏镜像文件的详细元数据和压缩信息。</para>
     /// </summary>
-    /// <param name="filePath">The path to the sparse image file.</param>
-    /// <returns>A <see cref="SparseImageInfo"/> containing metadata such as uncompressed size and compression ratio.</returns>
+    /// <param name="filePath">The path to the sparse image file. <para>稀疏镜像文件的路径。</para></param>
+    /// <returns>A <see cref="SparseImageInfo"/> containing metadata such as uncompressed size and compression ratio. <para>包含未压缩大小和压缩比等元数据的 SparseImageInfo。</para></returns>
     public static SparseImageInfo GetSparseImageInfo(string filePath)
     {
         try

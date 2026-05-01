@@ -1,6 +1,8 @@
 namespace FirmwareKit.Sparse.Streams;
+
 /// <summary>
 /// A read-only <see cref="Stream"/> that wraps a <see cref="SparseFile"/> to allow random access to its uncompressed data.
+/// <para>包装 SparseFile 的只读流，允许对其未压缩数据进行随机访问。</para>
 /// </summary>
 public class SparseStream : Stream
 {
@@ -11,8 +13,9 @@ public class SparseStream : Stream
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SparseStream"/> class.
+    /// <para>初始化 SparseStream 类的新实例。</para>
     /// </summary>
-    /// <param name="sparseFile">The sparse file instance.</param>
+    /// <param name="sparseFile">The sparse file instance. <para>稀疏文件实例。</para></param>
     public SparseStream(SparseFile sparseFile)
     {
         _sparseFile = sparseFile;
@@ -28,37 +31,55 @@ public class SparseStream : Stream
         }
     }
 
-    /// <summary>Indicates whether this stream supports reading (true).</summary>
+    /// <summary>
+    /// Indicates whether this stream supports reading (always true).
+    /// <para>指示此流是否支持读取（始终为 true）。</para>
+    /// </summary>
     public override bool CanRead => true;
 
-    /// <summary>Indicates whether this stream supports seeking (true).</summary>
+    /// <summary>
+    /// Indicates whether this stream supports seeking (always true).
+    /// <para>指示此流是否支持查找（始终为 true）。</para>
+    /// </summary>
     public override bool CanSeek => true;
 
-    /// <summary>Indicates whether this stream supports writing (false).</summary>
+    /// <summary>
+    /// Indicates whether this stream supports writing (always false).
+    /// <para>指示此流是否支持写入（始终为 false）。</para>
+    /// </summary>
     public override bool CanWrite => false;
 
-    /// <summary>Gets the total logical length, in bytes, of the underlying sparse data.</summary>
+    /// <summary>
+    /// Gets the total logical length, in bytes, of the underlying sparse data.
+    /// <para>获取底层稀疏数据的逻辑总长度（字节数）。</para>
+    /// </summary>
     public override long Length => _length;
 
-    /// <summary>Gets or sets the current read position within the stream.</summary>
+    /// <summary>
+    /// Gets or sets the current read position within the stream.
+    /// <para>获取或设置流中的当前读取位置。</para>
+    /// </summary>
     public override long Position
     {
         get => _position;
         set => _position = value < 0 ? 0 : (value > _length ? _length : value);
     }
 
-    /// <summary>Flush has no effect on this read-only stream.</summary>
+    /// <summary>
+    /// Flush has no effect on this read-only stream.
+    /// <para>Flush 对此只读流无效。</para>
+    /// </summary>
     public override void Flush() { }
-
 
 #if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
     /// <summary>
-    /// Read bytes from the sparse stream into a byte array.
+    /// Reads bytes from the sparse stream into a byte array.
+    /// <para>从稀疏流中读取字节到字节数组。</para>
     /// </summary>
-    /// <param name="buffer">Destination buffer to receive bytes.</param>
-    /// <param name="offset">Offset in the destination buffer to start writing (int).</param>
-    /// <param name="count">Maximum number of bytes to read (int).</param>
-    /// <returns>The number of bytes read.</returns>
+    /// <param name="buffer">Destination buffer to receive bytes. <para>接收字节的目标缓冲区。</para></param>
+    /// <param name="offset">Offset in the destination buffer to start writing. <para>目标缓冲区中开始写入的偏移量。</para></param>
+    /// <param name="count">Maximum number of bytes to read. <para>要读取的最大字节数。</para></param>
+    /// <returns>The number of bytes read. <para>读取的字节数。</para></returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
         return Read(buffer.AsSpan(offset, count));
@@ -67,11 +88,11 @@ public class SparseStream : Stream
 
 #if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
     /// <summary>
-    /// Read bytes from the sparse stream into the provided span.
-    /// This method will read up to <paramref name="buffer"/>.Length bytes from the current position.
+    /// Reads bytes from the sparse stream into the provided span.
+    /// <para>从稀疏流中读取字节到提供的跨度。</para>
     /// </summary>
-    /// <param name="buffer">Destination span to receive bytes.</param>
-    /// <returns>The number of bytes read.</returns>
+    /// <param name="buffer">Destination span to receive bytes. <para>接收字节的目标跨度。</para></param>
+    /// <returns>The number of bytes read. <para>读取的字节数。</para></returns>
     public override int Read(Span<byte> buffer)
     {
         if (_position >= _length)
@@ -121,13 +142,14 @@ public class SparseStream : Stream
     }
 #else
     /// <summary>
-    /// Read bytes from the sparse stream into the provided buffer.
+    /// Reads bytes from the sparse stream into the provided buffer.
     /// This overload is used on platforms that do not support <see cref="Span{T}"/>-based APIs.
+    /// <para>从稀疏流中读取字节到提供的缓冲区。此重载用于不支持基于 Span{T} API 的平台。</para>
     /// </summary>
-    /// <param name="buffer">Destination buffer to receive bytes.</param>
-    /// <param name="offset">Offset in the destination buffer to start writing (int).</param>
-    /// <param name="count">Maximum number of bytes to read (int).</param>
-    /// <returns>The number of bytes actually read (int).</returns>
+    /// <param name="buffer">Destination buffer to receive bytes. <para>接收字节的目标缓冲区。</para></param>
+    /// <param name="offset">Offset in the destination buffer to start writing. <para>目标缓冲区中开始写入的偏移量。</para></param>
+    /// <param name="count">Maximum number of bytes to read. <para>要读取的最大字节数。</para></param>
+    /// <returns>The number of bytes actually read. <para>实际读取的字节数。</para></returns>
     public override int Read(byte[] buffer, int offset, int count)
     {
         if (_position >= _length)
@@ -179,13 +201,14 @@ public class SparseStream : Stream
 #endif
 
     /// <summary>
-    /// Fill <paramref name="destSpan"/> with data from the specified <paramref name="chunk"/>
+    /// Fills <paramref name="destSpan"/> with data from the specified <paramref name="chunk"/>
     /// starting at the given <paramref name="offsetInChunk"/>. Handles RAW, FILL and other chunk types.
+    /// <para>从指定数据块的给定偏移量开始，用数据填充目标跨度。处理 RAW、FILL 及其他数据块类型。</para>
     /// </summary>
-    /// <param name="chunk">Chunk to read data from.</param>
-    /// <param name="offsetInChunk">Byte offset inside the chunk to start reading from.</param>
-    /// <param name="destSpan">Destination span to receive chunk bytes.</param>
-    /// <param name="fillValue">Temporary buffer used for fill pattern generation.</param>
+    /// <param name="chunk">Chunk to read data from. <para>要读取数据的数据块。</para></param>
+    /// <param name="offsetInChunk">Byte offset inside the chunk to start reading from. <para>数据块内开始读取的字节偏移。</para></param>
+    /// <param name="destSpan">Destination span to receive chunk bytes. <para>接收数据块字节的目标跨度。</para></param>
+    /// <param name="fillValue">Temporary buffer used for fill pattern generation. <para>用于生成填充模式的临时缓冲区。</para></param>
     private void ProcessChunkData(SparseChunk chunk, long offsetInChunk, Span<byte> destSpan, Span<byte> fillValue)
     {
         switch (chunk.Header.ChunkType)
@@ -204,6 +227,7 @@ public class SparseStream : Stream
                     destSpan.Clear();
                 }
                 break;
+
             case (ushort)ChunkType.Fill:
                 BinaryPrimitives.WriteUInt32LittleEndian(fillValue, chunk.FillValue);
                 var count = destSpan.Length;
@@ -226,6 +250,7 @@ public class SparseStream : Stream
                     fillValue.Slice(0, destSpan.Length).CopyTo(destSpan);
                 }
                 break;
+
             default:
                 destSpan.Clear();
                 break;
@@ -233,11 +258,12 @@ public class SparseStream : Stream
     }
 
     /// <summary>
-    /// Find the chunk that contains the given logical byte offset and return it
-    /// along with the chunk's starting block index.
+    /// Finds the chunk that contains the given logical byte offset and returns it
+    /// along with the chunk's starting block index, using binary search.
+    /// <para>使用二分查找找到包含给定逻辑字节偏移的数据块，并返回该数据块及其起始块索引。</para>
     /// </summary>
-    /// <param name="offset">Logical byte offset within the sparse data.</param>
-    /// <returns>Tuple of the chunk (or null) and its starting block index.</returns>
+    /// <param name="offset">Logical byte offset within the sparse data. <para>稀疏数据内的逻辑字节偏移。</para></param>
+    /// <returns>A tuple of the chunk (or null) and its starting block index. <para>包含数据块（或 null）及其起始块索引的元组。</para></returns>
     private (SparseChunk? chunk, uint startBlock) FindChunkAtOffset(long offset)
     {
         var targetBlock = (uint)(offset / _sparseFile.Header.BlockSize);
@@ -269,10 +295,11 @@ public class SparseStream : Stream
     }
 
     /// <summary>
-    /// Return the block index of the next chunk following the given byte offset.
+    /// Returns the block index of the next chunk following the given byte offset.
+    /// <para>返回给定字节偏移之后下一个数据块的块索引。</para>
     /// </summary>
-    /// <param name="offset">Logical byte offset within the sparse data.</param>
-    /// <returns>Block index of the next chunk.</returns>
+    /// <param name="offset">Logical byte offset within the sparse data. <para>稀疏数据内的逻辑字节偏移。</para></param>
+    /// <returns>Block index of the next chunk. <para>下一个数据块的块索引。</para></returns>
     private uint GetNextChunkBlock(long offset)
     {
         var targetBlock = (uint)(offset / _sparseFile.Header.BlockSize);
@@ -288,11 +315,12 @@ public class SparseStream : Stream
     }
 
     /// <summary>
-    /// Seek to a specific position within the stream.
+    /// Seeks to a specific position within the stream.
+    /// <para>在流中查找指定位置。</para>
     /// </summary>
-    /// <param name="offset">Offset to seek to relative to <paramref name="origin"/>.</param>
-    /// <param name="origin">Specifies the reference point used to obtain the new position.</param>
-    /// <returns>The new position within the stream.</returns>
+    /// <param name="offset">Offset to seek to relative to <paramref name="origin"/>. <para>相对于 origin 的查找偏移量。</para></param>
+    /// <param name="origin">Specifies the reference point used to obtain the new position. <para>指定用于获取新位置的参考点。</para></param>
+    /// <returns>The new position within the stream. <para>流中的新位置。</para></returns>
     public override long Seek(long offset, SeekOrigin origin)
     {
         switch (origin)
@@ -300,16 +328,15 @@ public class SparseStream : Stream
             case SeekOrigin.Begin: Position = offset; break;
             case SeekOrigin.Current: Position += offset; break;
             case SeekOrigin.End: Position = _length + offset; break;
-            default:
-                break;
         }
         return Position;
     }
 
     /// <summary>
     /// Setting the length is not supported for this read-only stream.
+    /// <para>此只读流不支持设置长度。</para>
     /// </summary>
-    /// <param name="value">Not used.</param>
+    /// <param name="value">Not used. <para>未使用。</para></param>
     public override void SetLength(long value)
     {
         throw new NotSupportedException();
@@ -317,10 +344,11 @@ public class SparseStream : Stream
 
     /// <summary>
     /// Writing is not supported for this read-only stream.
+    /// <para>此只读流不支持写入。</para>
     /// </summary>
-    /// <param name="buffer">Not used.</param>
-    /// <param name="offset">Not used.</param>
-    /// <param name="count">Not used.</param>
+    /// <param name="buffer">Not used. <para>未使用。</para></param>
+    /// <param name="offset">Not used. <para>未使用。</para></param>
+    /// <param name="count">Not used. <para>未使用。</para></param>
     public override void Write(byte[] buffer, int offset, int count)
     {
         throw new NotSupportedException();

@@ -7,20 +7,21 @@ using FirmwareKit.Sparse.Utils;
 using System.Buffers;
 using System.Buffers.Binary;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
 /// <summary>
 /// Provides methods for reading and importing sparse image data.
+/// <para>提供读取和导入稀疏镜像数据的方法。</para>
 /// </summary>
 public static class SparseReader
 {
     /// <summary>
     /// Peeks at the sparse header of a file without reading the entire content.
+    /// <para>预览文件的稀疏头部，不读取全部内容。</para>
     /// </summary>
-    /// <param name="filePath">The path to the sparse image file.</param>
-    /// <returns>A <see cref="SparseHeader"/> containing the metadata of the sparse image.</returns>
+    /// <param name="filePath">The path to the sparse image file. <para>稀疏镜像文件的路径。</para></param>
+    /// <returns>A <see cref="SparseHeader"/> containing the metadata of the sparse image. <para>包含稀疏镜像元数据的 SparseHeader。</para></returns>
     public static SparseHeader PeekHeader(string filePath)
     {
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
@@ -30,26 +31,28 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Load a <see cref="SparseFile"/> from the provided <see cref="Stream"/>.
+    /// Loads a <see cref="SparseFile"/> from the provided <see cref="Stream"/>.
+    /// <para>从提供的 Stream 加载 SparseFile。</para>
     /// </summary>
-    /// <param name="stream">Input stream containing the sparse image data.</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <returns>A <see cref="SparseFile"/> parsed from the stream.</returns>
+    /// <param name="stream">Input stream containing the sparse image data. <para>包含稀疏镜像数据的输入流。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing. <para>如果为 true，解析时验证 CRC 校验和。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostic messages. <para>可选的日志记录器实例。</para></param>
+    /// <returns>A <see cref="SparseFile"/> parsed from the stream. <para>从流解析的 SparseFile。</para></returns>
     public static SparseFile FromStream(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
         return FromStreamInternal(stream, null, validateCrc, verbose, logger);
     }
 
     /// <summary>
-    /// Load a <see cref="SparseFile"/> from a byte array that contains the sparse image.
+    /// Loads a <see cref="SparseFile"/> from a byte array that contains the sparse image.
+    /// <para>从包含稀疏镜像数据的字节数组加载 SparseFile。</para>
     /// </summary>
-    /// <param name="buffer">Byte array containing the sparse image data.</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <returns>A <see cref="SparseFile"/> parsed from the buffer.</returns>
+    /// <param name="buffer">Byte array containing the sparse image data. <para>包含稀疏镜像数据的字节数组。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing. <para>如果为 true，解析时验证 CRC 校验和。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostic messages. <para>可选的日志记录器实例。</para></param>
+    /// <returns>A <see cref="SparseFile"/> parsed from the buffer. <para>从缓冲区解析的 SparseFile。</para></returns>
     public static SparseFile FromBuffer(byte[] buffer, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
         using var ms = new MemoryStream(buffer);
@@ -57,19 +60,30 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Load a <see cref="SparseFile"/> directly from an image file on disk.
+    /// Loads a <see cref="SparseFile"/> directly from an image file on disk.
+    /// <para>直接从磁盘上的镜像文件加载 SparseFile。</para>
     /// </summary>
-    /// <param name="filePath">Path to the image file on disk (string).</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <returns>A <see cref="SparseFile"/> parsed from the file.</returns>
+    /// <param name="filePath">Path to the image file on disk. <para>磁盘上镜像文件的路径。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing. <para>如果为 true，解析时验证 CRC 校验和。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostic messages. <para>可选的日志记录器实例。</para></param>
+    /// <returns>A <see cref="SparseFile"/> parsed from the file. <para>从文件解析的 SparseFile。</para></returns>
     public static SparseFile FromImageFile(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
         return FromStreamInternal(stream, filePath, validateCrc, verbose, logger);
     }
 
+    /// <summary>
+    /// Reads a sparse image from a stream with full parsing and optional CRC validation.
+    /// <para>从流中读取稀疏镜像，执行完整解析和可选的 CRC 验证。</para>
+    /// </summary>
+    /// <param name="stream">The source stream. <para>源流。</para></param>
+    /// <param name="filePath">Optional file path for reference. <para>可选的文件路径，用于引用。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums. <para>如果为 true，验证 CRC 校验和。</para></param>
+    /// <param name="verbose">Enable verbose logging. <para>启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance. <para>可选的日志记录器实例。</para></param>
+    /// <returns>A parsed <see cref="SparseFile"/>. <para>解析后的 SparseFile。</para></returns>
     internal static SparseFile FromStreamInternal(Stream stream, string? filePath, bool validateCrc, bool verbose, ISparseLogger? logger)
     {
         var sparseFile = new SparseFile { Verbose = verbose, Logger = logger };
@@ -131,7 +145,7 @@ public static class SparseReader
 
                 var chunk = new SparseChunk(chunkHeader) { StartBlock = currentBlock };
 
-                if (!chunkHeader.IsValid())
+                if (!chunkHeader.IsValid(sparseFile.Header.ChunkHeaderSize, sparseFile.Header.BlockSize))
                 {
                     throw new InvalidDataException($"Invalid chunk header for chunk {i}: Type 0x{chunkHeader.ChunkType:X4}");
                 }
@@ -222,7 +236,6 @@ public static class SparseReader
                         {
                             throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
                         }
-                        // Use ReadExactly to ensure we read all 4 bytes (handles partial reads)
                         stream.ReadExactly(buffer4);
                         var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
                         if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
@@ -242,7 +255,6 @@ public static class SparseReader
                 }
             }
 
-            // Trim trailing DontCare chunk that only exists to pad to header.TotalBlocks.
             if (sparseFile.Chunks.Count > 0)
             {
                 var last = sparseFile.Chunks[sparseFile.Chunks.Count - 1];
@@ -275,28 +287,30 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Asynchronously load a <see cref="SparseFile"/> from the provided stream.
+    /// Asynchronously loads a <see cref="SparseFile"/> from the provided stream.
+    /// <para>从提供的流异步加载 SparseFile。</para>
     /// </summary>
-    /// <param name="stream">Input stream containing the sparse image data.</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation.</param>
-    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>.</returns>
+    /// <param name="stream">Input stream containing the sparse image data. <para>包含稀疏镜像数据的输入流。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing. <para>如果为 true，解析时验证 CRC 校验和。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostic messages. <para>可选的日志记录器实例。</para></param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation. <para>取消异步操作的取消令牌。</para></param>
+    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>. <para>解析为 SparseFile 的任务。</para></returns>
     public static Task<SparseFile> FromStreamAsync(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
         return FromStreamInternalAsync(stream, null, validateCrc, verbose, logger, cancellationToken);
     }
 
     /// <summary>
-    /// Asynchronously load a <see cref="SparseFile"/> from a byte array that contains the sparse image.
+    /// Asynchronously loads a <see cref="SparseFile"/> from a byte array that contains the sparse image.
+    /// <para>从包含稀疏镜像数据的字节数组异步加载 SparseFile。</para>
     /// </summary>
-    /// <param name="buffer">Byte array containing the sparse image data.</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation.</param>
-    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>.</returns>
+    /// <param name="buffer">Byte array containing the sparse image data. <para>包含稀疏镜像数据的字节数组。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing. <para>如果为 true，解析时验证 CRC 校验和。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostic messages. <para>可选的日志记录器实例。</para></param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation. <para>取消异步操作的取消令牌。</para></param>
+    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>. <para>解析为 SparseFile 的任务。</para></returns>
     public static async Task<SparseFile> FromBufferAsync(byte[] buffer, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
         using var ms = new MemoryStream(buffer);
@@ -304,14 +318,15 @@ public static class SparseReader
     }
 
     /// <summary>
-    /// Asynchronously load a <see cref="SparseFile"/> from an image file on disk.
+    /// Asynchronously loads a <see cref="SparseFile"/> from an image file on disk.
+    /// <para>从磁盘上的镜像文件异步加载 SparseFile。</para>
     /// </summary>
-    /// <param name="filePath">Path to the image file on disk (string).</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation.</param>
-    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>.</returns>
+    /// <param name="filePath">Path to the image file on disk. <para>磁盘上镜像文件的路径。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums while parsing. <para>如果为 true，解析时验证 CRC 校验和。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostic messages. <para>可选的日志记录器实例。</para></param>
+    /// <param name="cancellationToken">Cancellation token to cancel the asynchronous operation. <para>取消异步操作的取消令牌。</para></param>
+    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>. <para>解析为 SparseFile 的任务。</para></returns>
     public static async Task<SparseFile> FromImageFileAsync(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
 #if NET6_0_OR_GREATER
@@ -322,6 +337,17 @@ public static class SparseReader
         return await FromStreamInternalAsync(stream, filePath, validateCrc, verbose, logger, cancellationToken);
     }
 
+    /// <summary>
+    /// Asynchronously reads a sparse image from a stream with full parsing and optional CRC validation.
+    /// <para>异步从流中读取稀疏镜像，执行完整解析和可选的 CRC 验证。</para>
+    /// </summary>
+    /// <param name="stream">The source stream. <para>源流。</para></param>
+    /// <param name="filePath">Optional file path for reference. <para>可选的文件路径，用于引用。</para></param>
+    /// <param name="validateCrc">If true, validate CRC checksums. <para>如果为 true，验证 CRC 校验和。</para></param>
+    /// <param name="verbose">Enable verbose logging. <para>启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance. <para>可选的日志记录器实例。</para></param>
+    /// <param name="cancellationToken">Token to cancel the operation. <para>取消操作的令牌。</para></param>
+    /// <returns>A task that resolves to a parsed <see cref="SparseFile"/>. <para>解析为 SparseFile 的任务。</para></returns>
     internal static async Task<SparseFile> FromStreamInternalAsync(Stream stream, string? filePath, bool validateCrc, bool verbose, ISparseLogger? logger, CancellationToken cancellationToken)
     {
         var sparseFile = new SparseFile { Verbose = verbose, Logger = logger };
@@ -384,7 +410,7 @@ public static class SparseReader
 
                 var chunk = new SparseChunk(chunkHeader) { StartBlock = currentBlock };
 
-                if (!chunkHeader.IsValid())
+                if (!chunkHeader.IsValid(sparseFile.Header.ChunkHeaderSize, sparseFile.Header.BlockSize))
                 {
                     throw new InvalidDataException($"Invalid chunk header for chunk {i}: Type 0x{chunkHeader.ChunkType:X4}");
                 }
@@ -449,14 +475,12 @@ public static class SparseReader
                         }
 
                         await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken);
-
                         chunk.FillValue = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
 
                         if (validateCrc && checksum.HasValue)
                         {
                             checksum = Crc32.UpdateRepeated(checksum.Value, chunk.FillValue, expectedRawSize);
                         }
-
                         break;
 
                     case (ushort)ChunkType.DontCare:
@@ -475,9 +499,8 @@ public static class SparseReader
                         {
                             throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
                         }
-                        var crcFileData = new byte[4];
-                        await ReadExactlyAsync(stream, crcFileData, 0, 4, cancellationToken);
-                        var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcFileData);
+                        await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken);
+                        var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
                         if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
                         {
                             throw new InvalidDataException($"CRC32 checksum mismatch: file has 0x{fileCrc:X8}, computed 0x{Crc32.Finish(checksum.Value):X8}");
@@ -492,6 +515,16 @@ public static class SparseReader
                 {
                     sparseFile.AddChunkRaw(chunk);
                     currentBlock += chunkHeader.ChunkSize;
+                }
+            }
+
+            if (sparseFile.Chunks.Count > 0)
+            {
+                var last = sparseFile.Chunks[sparseFile.Chunks.Count - 1];
+                if (last.Header.ChunkType == (ushort)ChunkType.DontCare && (last.StartBlock + last.Header.ChunkSize) == currentBlock && currentBlock == sparseFile.Header.TotalBlocks)
+                {
+                    sparseFile.RemoveLastChunk();
+                    sparseFile.Header = sparseFile.Header with { TotalChunks = sparseFile.Header.TotalChunks - 1 };
                 }
             }
 
@@ -516,447 +549,155 @@ public static class SparseReader
         }
     }
 
-    private static async Task ReadExactlyAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-    {
-#if NET7_0_OR_GREATER
-        await stream.ReadExactlyAsync(buffer.AsMemory(offset, count), cancellationToken);
-#else
-        var totalRead = 0;
-        while (totalRead < count)
-        {
-            var read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, cancellationToken);
-            if (read == 0) throw new EndOfStreamException();
-            totalRead += read;
-        }
-#endif
-    }
-
     /// <summary>
-    /// Detect whether the given file is a sparse image or a raw image and import accordingly.
+    /// Automatically imports a sparse file from disk, detecting whether it is sparse or raw format.
+    /// <para>自动从磁盘导入稀疏文件，检测其为稀疏格式还是原始格式。</para>
     /// </summary>
-    /// <param name="filePath">Path to the input file on disk (string).</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <returns>A <see cref="SparseFile"/> representing the imported image.</returns>
+    /// <param name="filePath">Path to the input file. <para>输入文件路径。</para></param>
+    /// <param name="validateCrc">If true, CRC validation will be performed. <para>如果为 true，将执行 CRC 验证。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger for diagnostic messages. <para>可选的日志记录器。</para></param>
+    /// <returns>A <see cref="SparseFile"/> representing the imported image. <para>表示导入镜像的 SparseFile。</para></returns>
     public static SparseFile ImportAuto(string filePath, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
-        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return ImportAuto(stream, validateCrc, verbose, logger, filePath);
+        using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
+        return ImportAuto(stream, validateCrc, verbose, logger);
     }
 
     /// <summary>
-    /// Automatically import image data from a stream, detecting whether it is sparse or raw.
+    /// Automatically imports image data from a stream, detecting whether it is sparse or raw format.
+    /// <para>自动从流导入镜像数据，检测其为稀疏格式还是原始格式。</para>
     /// </summary>
-    /// <param name="stream">Input stream to inspect and import.</param>
-    /// <param name="validateCrc">If true, validate CRC checksums while parsing (bool).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <param name="filePath">Optional original file path (used when creating file-backed providers).</param>
-    /// <returns>A <see cref="SparseFile"/> representing the imported image.</returns>
-    public static SparseFile ImportAuto(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, string? filePath = null)
+    /// <param name="stream">Input stream to read image data from. <para>读取镜像数据的输入流。</para></param>
+    /// <param name="validateCrc">If true, CRC validation will be performed. <para>如果为 true，将执行 CRC 验证。</para></param>
+    /// <param name="verbose">If true, enable verbose logging. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger for diagnostic messages. <para>可选的日志记录器。</para></param>
+    /// <returns>A <see cref="SparseFile"/> representing the imported image. <para>表示导入镜像的 SparseFile。</para></returns>
+    public static SparseFile ImportAuto(Stream stream, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null)
     {
-        var magicData = new byte[4];
-        var pos = stream.CanSeek ? stream.Position : 0;
-        var read = stream.Read(magicData, 0, 4);
-        if (read == 4)
-        {
-            var magic = BinaryPrimitives.ReadUInt32LittleEndian(magicData);
-            if (stream.CanSeek)
-            {
-                stream.Seek(pos, SeekOrigin.Begin);
-            }
-
-            if (magic == SparseFormat.SparseHeaderMagic)
-            {
-                var inputStream = stream.CanSeek ? stream : new PrefixReadStream(stream, magicData, read);
-                return FromStreamInternal(inputStream, filePath, validateCrc, verbose, logger);
-            }
-        }
-
-        if (filePath != null)
-        {
-            return FromRawFile(filePath, 4096, verbose, logger);
-        }
-
-        // Treat as raw stream
-        Stream rawInput;
         if (stream.CanSeek)
         {
-            stream.Seek(pos, SeekOrigin.Begin);
-            rawInput = stream;
+            var originalPosition = stream.Position;
+            Span<byte> magicBuffer = stackalloc byte[4];
+            var bytesRead = stream.Read(magicBuffer);
+            stream.Position = originalPosition;
+
+            if (bytesRead >= 4 && BinaryPrimitives.ReadUInt32LittleEndian(magicBuffer) == SparseFormat.SparseHeaderMagic)
+            {
+                return FromStream(stream, validateCrc, verbose, logger);
+            }
         }
         else
         {
-            rawInput = new PrefixReadStream(stream, magicData, read);
-        }
-
-        long rawLength;
-        if (rawInput.CanSeek)
-        {
-            rawLength = rawInput.Length - rawInput.Position;
-        }
-        else
-        {
-            using var temp = new MemoryStream();
-            rawInput.CopyTo(temp);
-            var rawBytes = temp.ToArray();
-            var rawFromBytes = new SparseFile(4096, rawBytes.Length, verbose) { Logger = logger };
-            rawFromBytes.AddRawChunk(rawBytes);
-            return rawFromBytes;
-        }
-
-        var rawFile = new SparseFile(4096, rawLength, verbose) { Logger = logger };
-        ReadFromStream(rawFile, rawInput, SparseReadMode.Normal);
-        return rawFile;
-    }
-
-    private sealed class PrefixReadStream : Stream
-    {
-        private readonly Stream _inner;
-        private readonly byte[] _prefix;
-        private int _prefixOffset;
-
-        public PrefixReadStream(Stream inner, byte[] prefix, int prefixLength)
-        {
-            _inner = inner;
-            _prefix = new byte[prefixLength];
-            Array.Copy(prefix, _prefix, prefixLength);
-        }
-
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position
-        {
-            get => throw new NotSupportedException();
-            set => throw new NotSupportedException();
-        }
-
-        public override void Flush() { }
-
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            if (_prefixOffset < _prefix.Length)
+            var probeBuffer = new byte[SparseFormat.SparseHeaderSize];
+            var bytesRead = stream.Read(probeBuffer, 0, SparseFormat.SparseHeaderSize);
+            if (bytesRead >= 4 && BinaryPrimitives.ReadUInt32LittleEndian(probeBuffer) == SparseFormat.SparseHeaderMagic)
             {
-                var toCopy = Math.Min(count, _prefix.Length - _prefixOffset);
-                Array.Copy(_prefix, _prefixOffset, buffer, offset, toCopy);
-                _prefixOffset += toCopy;
-                return toCopy;
+                var combinedStream = new MemoryStream();
+                combinedStream.Write(probeBuffer, 0, bytesRead);
+                stream.CopyTo(combinedStream);
+                combinedStream.Position = 0;
+                return FromStream(combinedStream, validateCrc, verbose, logger);
             }
 
-            return _inner.Read(buffer, offset, count);
+            var rawStream = new MemoryStream();
+            rawStream.Write(probeBuffer, 0, bytesRead);
+            stream.CopyTo(rawStream);
+            rawStream.Position = 0;
+            return FromRawStream(rawStream, 4096, verbose, logger);
         }
 
-#if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int Read(Span<byte> buffer)
-        {
-            if (_prefixOffset < _prefix.Length)
-            {
-                var toCopy = Math.Min(buffer.Length, _prefix.Length - _prefixOffset);
-                _prefix.AsSpan(_prefixOffset, toCopy).CopyTo(buffer);
-                _prefixOffset += toCopy;
-                return toCopy;
-            }
-
-            return _inner.Read(buffer);
-        }
-#endif
-
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        return FromRawStream(stream, 4096, verbose, logger);
     }
 
     /// <summary>
-    /// Create a <see cref="SparseFile"/> by importing a raw binary file (no sparse metadata).
+    /// Creates a <see cref="SparseFile"/> by importing a raw binary file and converting it to sparse representation.
+    /// <para>通过导入原始二进制文件并将其转换为稀疏表示来创建 SparseFile。</para>
     /// </summary>
-    /// <param name="filePath">Path to the raw binary file (string).</param>
-    /// <param name="blockSize">Block size to use for conversion, in bytes (uint).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <returns>A <see cref="SparseFile"/> constructed from the raw file.</returns>
+    /// <param name="filePath">Path to the raw binary file. <para>原始二进制文件的路径。</para></param>
+    /// <param name="blockSize">Block size to use for conversion, in bytes. <para>转换使用的块大小（字节）。</para></param>
+    /// <param name="verbose">Enable verbose logging if true. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostics. <para>可选的日志记录器实例。</para></param>
+    /// <returns>A <see cref="SparseFile"/> converted from the raw file. <para>从原始文件转换的 SparseFile。</para></returns>
     public static SparseFile FromRawFile(string filePath, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null)
     {
-        var fi = new FileInfo(filePath);
-        var sparseFile = new SparseFile(blockSize, (long)fi.Length, verbose) { Logger = logger };
-        using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
-        var chunkHeader = new ChunkHeader
+        var fileInfo = new FileInfo(filePath);
+        var totalSize = fileInfo.Length;
+        var totalBlocks = (uint)((totalSize + blockSize - 1) / blockSize);
+
+        var sparseFile = new SparseFile(blockSize, totalSize, verbose) { Logger = logger };
+
+        if (totalSize > 0)
         {
-            ChunkType = (ushort)ChunkType.Raw,
-            ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
-            TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
-        };
-        sparseFile.AddChunkRaw(new SparseChunk(chunkHeader)
-        {
-            DataProvider = new FileDataProvider(filePath, 0, fi.Length)
-        });
+            sparseFile.AddRawFileChunk(filePath, 0, (uint)totalSize);
+        }
+
         return sparseFile;
     }
 
     /// <summary>
-    /// Asynchronously create a <see cref="SparseFile"/> by importing a raw binary file.
+    /// Asynchronously creates a <see cref="SparseFile"/> by importing a raw binary file.
+    /// <para>异步通过导入原始二进制文件创建 SparseFile。</para>
     /// </summary>
-    /// <param name="filePath">Path to the raw binary file (string).</param>
-    /// <param name="blockSize">Block size to use for conversion, in bytes (uint).</param>
-    /// <param name="verbose">If true, enable verbose logging (bool).</param>
-    /// <param name="logger">Optional logger instance for diagnostic messages.</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
-    /// <returns>A task that resolves to a <see cref="SparseFile"/> constructed from the raw file.</returns>
+    /// <param name="filePath">Path to the raw binary file. <para>原始二进制文件的路径。</para></param>
+    /// <param name="blockSize">Block size to use for conversion, in bytes. <para>转换使用的块大小（字节）。</para></param>
+    /// <param name="verbose">Enable verbose logging if true. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostics. <para>可选的日志记录器实例。</para></param>
+    /// <param name="cancellationToken">Token to cancel the asynchronous operation. <para>取消异步操作的令牌。</para></param>
+    /// <returns>A task that resolves to a <see cref="SparseFile"/> converted from the raw file. <para>解析为从原始文件转换的 SparseFile 的任务。</para></returns>
     public static Task<SparseFile> FromRawFileAsync(string filePath, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
-        var fi = new FileInfo(filePath);
-        var sparseFile = new SparseFile(blockSize, (long)fi.Length, verbose) { Logger = logger };
-        var chunkHeader = new ChunkHeader
-        {
-            ChunkType = (ushort)ChunkType.Raw,
-            ChunkSize = (uint)((fi.Length + blockSize - 1) / blockSize),
-            TotalSize = (uint)(sparseFile.Header.ChunkHeaderSize + (((fi.Length + blockSize - 1) / blockSize) * blockSize))
-        };
-        sparseFile.AddChunkRaw(new SparseChunk(chunkHeader)
-        {
-            DataProvider = new FileDataProvider(filePath, 0, fi.Length)
-        });
-        return Task.FromResult(sparseFile);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(FromRawFile(filePath, blockSize, verbose, logger));
     }
 
     /// <summary>
-    /// Read raw data from a stream and incorporate it into the provided <paramref name="sparseFile"/>
-    /// by converting consecutive blocks into RAW, FILL or DONT_CARE chunks according to <paramref name="mode"/>.
+    /// Creates a <see cref="SparseFile"/> from a raw data stream.
+    /// <para>从原始数据流创建 SparseFile。</para>
     /// </summary>
-    /// <param name="sparseFile">Target <see cref="SparseFile"/> to populate.</param>
-    /// <param name="stream">Input stream to read raw data from.</param>
-    /// <param name="mode">The sparsification mode to apply (<see cref="SparseReadMode"/>).</param>
-    /// <param name="validateCrc">If true, update CRC while reading (bool).</param>
-    public static void ReadFromStream(SparseFile sparseFile, Stream stream, SparseReadMode mode, bool validateCrc = false)
+    /// <param name="stream">Stream containing raw binary data. <para>包含原始二进制数据的流。</para></param>
+    /// <param name="blockSize">Block size to use for conversion, in bytes. <para>转换使用的块大小（字节）。</para></param>
+    /// <param name="verbose">Enable verbose logging if true. <para>如果为 true，启用详细日志。</para></param>
+    /// <param name="logger">Optional logger instance for diagnostics. <para>可选的日志记录器实例。</para></param>
+    /// <returns>A <see cref="SparseFile"/> converted from the raw stream. <para>从原始流转换的 SparseFile。</para></returns>
+    private static SparseFile FromRawStream(Stream stream, uint blockSize = 4096, bool verbose = false, ISparseLogger? logger = null)
     {
-        if (mode == SparseReadMode.Sparse)
+        byte[] data;
+        if (stream is MemoryStream ms && ms.TryGetBuffer(out var segment))
         {
-            var headerData = new byte[SparseFormat.SparseHeaderSize];
-            if (stream.Read(headerData, 0, headerData.Length) != headerData.Length)
+            data = segment.Array!;
+            var offset = segment.Offset;
+            var count = segment.Count;
+            var sparseFile = new SparseFile(blockSize, count, verbose) { Logger = logger };
+            if (count > 0)
             {
-                throw new InvalidDataException("Failed to read sparse header");
+                sparseFile.AddRawChunk(data.Skip(offset).Take(count).ToArray());
             }
-
-            var importedHeader = SparseHeader.FromBytes(headerData);
-            if (!importedHeader.IsValid())
-            {
-                throw new InvalidDataException("Invalid sparse header");
-            }
-
-            if (sparseFile.Header.BlockSize != importedHeader.BlockSize)
-            {
-                throw new ArgumentException("Imported sparse file block size does not match the current file");
-            }
-
-            if (sparseFile.Verbose)
-            {
-                SparseLogger.LogInformation($"ReadFromStream (Sparse mode): BlockSize={importedHeader.BlockSize}, TotalBlocks={importedHeader.TotalBlocks}, TotalChunks={importedHeader.TotalChunks}");
-            }
-
-            stream.Seek(importedHeader.FileHeaderSize - SparseFormat.SparseHeaderSize, SeekOrigin.Current);
-
-            var checksum = Crc32.Begin();
-            var currentBlockStart = sparseFile.CurrentBlock;
-
-            for (uint i = 0; i < importedHeader.TotalChunks; i++)
-            {
-                var chunkHeaderData = new byte[SparseFormat.ChunkHeaderSize];
-                stream.ReadExactly(chunkHeaderData, 0, chunkHeaderData.Length);
-                var chunkHeader = ChunkHeader.FromBytes(chunkHeaderData);
-
-                if (sparseFile.Verbose)
-                {
-                    SparseLogger.LogInformation($"Imported Chunk #{i}: Type=0x{chunkHeader.ChunkType:X4}, Size={chunkHeader.ChunkSize} blocks");
-                }
-
-                stream.Seek(importedHeader.ChunkHeaderSize - SparseFormat.ChunkHeaderSize, SeekOrigin.Current);
-
-                var dataSize = (long)chunkHeader.TotalSize - importedHeader.ChunkHeaderSize;
-                var expectedRawSize = (long)chunkHeader.ChunkSize * sparseFile.Header.BlockSize;
-
-                var chunk = new SparseChunk(chunkHeader) { StartBlock = currentBlockStart };
-
-                switch (chunkHeader.ChunkType)
-                {
-                    case (ushort)ChunkType.Raw:
-                        if (dataSize != expectedRawSize)
-                        {
-                            throw new InvalidDataException($"Total size ({chunkHeader.TotalSize}) for RAW chunk {i} does not match expected data size ({expectedRawSize})");
-                        }
-                        var rawData = new byte[dataSize];
-                        stream.ReadExactly(rawData, 0, (int)dataSize);
-                        if (validateCrc)
-                        {
-                            checksum = Crc32.Update(checksum, rawData);
-                        }
-                        chunk.DataProvider = new MemoryDataProvider(rawData);
-                        sparseFile.AddChunkRaw(chunk);
-                        currentBlockStart += chunkHeader.ChunkSize;
-                        break;
-                    case (ushort)ChunkType.Fill:
-                        if (dataSize != 4)
-                        {
-                            throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} must be 4 bytes");
-                        }
-                        var fillData = new byte[4];
-                        stream.ReadExactly(fillData, 0, 4);
-                        var fillValue = BinaryPrimitives.ReadUInt32LittleEndian(fillData);
-                        if (validateCrc)
-                        {
-                            checksum = Crc32.UpdateRepeated(checksum, fillValue, expectedRawSize);
-                        }
-                        chunk.FillValue = fillValue;
-                        sparseFile.AddChunkRaw(chunk);
-                        currentBlockStart += chunkHeader.ChunkSize;
-                        break;
-                    case (ushort)ChunkType.DontCare:
-                        if (dataSize != 0)
-                        {
-                            throw new InvalidDataException($"Data size ({dataSize}) for DONT_CARE chunk {i} must be 0");
-                        }
-                        if (validateCrc)
-                        {
-                            checksum = Crc32.UpdateZero(checksum, expectedRawSize);
-                        }
-                        sparseFile.AddChunkRaw(chunk);
-                        currentBlockStart += chunkHeader.ChunkSize;
-                        break;
-                    case (ushort)ChunkType.Crc32:
-                        if (dataSize != 4)
-                        {
-                            throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
-                        }
-                        var crcFileData = new byte[4];
-                        stream.ReadExactly(crcFileData, 0, 4);
-                        if (validateCrc)
-                        {
-                            var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(crcFileData);
-                            if (fileCrc != Crc32.Finish(checksum))
-                            {
-                                throw new InvalidDataException("CRC32 validation failed");
-                            }
-                        }
-                        break;
-                    default:
-                        break;
-                }
-            }
-            return;
+            return sparseFile;
         }
 
-        // Normal or Hole mode: scan stream and sparsify
-        var blockSize = sparseFile.Header.BlockSize;
-        var bufferScan = new byte[blockSize];
-        long currentPos = 0;
-        var streamLen = stream.Length;
-        long rawStart = -1;
+        using var memoryStream = new MemoryStream();
+        stream.CopyTo(memoryStream);
+        data = memoryStream.ToArray();
 
-        while (currentPos < streamLen)
+        var totalSize = data.Length;
+        var sf = new SparseFile(blockSize, totalSize, verbose) { Logger = logger };
+        if (totalSize > 0)
         {
-            if (stream.CanSeek)
-            {
-                stream.Position = currentPos;
-            }
-            var bytesRead = stream.Read(bufferScan, 0, (int)Math.Min(blockSize, streamLen - currentPos));
-            if (bytesRead == 0)
-            {
-                break;
-            }
-
-            uint fillValue = 0;
-            var isZero = IsZeroBlock(bufferScan, bytesRead);
-            var isFill = !isZero && bytesRead == blockSize && IsFillBlock(bufferScan, out fillValue);
-
-            if (isZero || isFill)
-            {
-                if (rawStart != -1)
-                {
-                    sparseFile.AddStreamChunk(stream, rawStart, (uint)(currentPos - rawStart));
-                    rawStart = -1;
-                }
-
-                if (isZero)
-                {
-                    var zeroStart = currentPos;
-                    currentPos += bytesRead;
-                    while (currentPos < streamLen)
-                    {
-                        var innerRead = stream.Read(bufferScan, 0, (int)Math.Min(blockSize, streamLen - currentPos));
-                        if (innerRead > 0 && IsZeroBlock(bufferScan, innerRead))
-                        {
-                            currentPos += innerRead;
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                    if (mode == SparseReadMode.Hole)
-                    {
-                        sparseFile.AddDontCareChunk(currentPos - zeroStart);
-                    }
-                    else
-                    {
-                        sparseFile.AddFillChunk(0, currentPos - zeroStart);
-                    }
-                }
-                else
-                {
-                    var fillStart = currentPos;
-                    var currentFillValue = fillValue;
-                    currentPos += bytesRead;
-                    while (currentPos < streamLen)
-                    {
-                        var innerRead = stream.Read(bufferScan, 0, (int)Math.Min(blockSize, streamLen - currentPos));
-                        if (innerRead == blockSize && IsFillBlock(bufferScan, out var innerFill) && innerFill == currentFillValue)
-                        {
-                            currentPos += innerRead;
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                    sparseFile.AddFillChunk(currentFillValue, currentPos - fillStart);
-                }
-            }
-            else
-            {
-                if (rawStart == -1)
-                {
-                    rawStart = currentPos;
-                }
-                currentPos += bytesRead;
-            }
+            sf.AddRawChunk(data);
         }
-
-        if (rawStart != -1)
-        {
-            sparseFile.AddStreamChunk(stream, rawStart, (uint)(streamLen - rawStart));
-        }
+        return sf;
     }
 
-    private static bool IsZeroBlock(byte[] buffer, int length)
+    private static async Task ReadExactlyAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        if (length == 0) return true;
-        Span<byte> span = buffer.AsSpan(0, length);
-        Span<ulong> ulongSpan = MemoryMarshal.Cast<byte, ulong>(span);
-        foreach (var v in ulongSpan) if (v != 0) return false;
-        for (var i = ulongSpan.Length * 8; i < length; i++) if (buffer[i] != 0) return false;
-        return true;
-    }
-
-    private static bool IsFillBlock(byte[] buffer, out uint fillValue)
-    {
-        fillValue = 0;
-        if (buffer.Length < 4) return false;
-        var pattern = BinaryPrimitives.ReadUInt32LittleEndian(buffer);
-        Span<uint> uintSpan = MemoryMarshal.Cast<byte, uint>(buffer.AsSpan());
-        foreach (var v in uintSpan) if (v != pattern) return false;
-        for (var i = uintSpan.Length * 4; i < buffer.Length; i++) if (buffer[i] != (byte)(pattern >> (i % 4 * 8))) return false;
-        fillValue = pattern;
-        return true;
+        int totalRead = 0;
+        while (totalRead < count)
+        {
+            int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, cancellationToken);
+            if (read == 0)
+                throw new EndOfStreamException();
+            totalRead += read;
+        }
     }
 }
