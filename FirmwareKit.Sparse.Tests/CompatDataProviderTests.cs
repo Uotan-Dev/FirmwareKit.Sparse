@@ -1,9 +1,9 @@
 using FirmwareKit.Sparse.DataProviders;
 using Xunit;
 
-namespace FirmwareKit.Sparse.IntegrationTests
+namespace FirmwareKit.Sparse.Tests
 {
-    public class CompatibilityAndDataProviderTests
+    public class CompatDataProviderTests
     {
         private class LimitedReadStream : Stream
         {
@@ -54,7 +54,7 @@ namespace FirmwareKit.Sparse.IntegrationTests
         }
 
         [Fact]
-        public void StreamDataProvider_ReadsCorrectly_And_WriteToWritesData()
+        public async Task StreamDataProvider_ReadsCorrectly_And_WriteToWritesData()
         {
             var data = Enumerable.Range(0, 1000).Select(i => (byte)(i % 256)).ToArray();
             using var baseMs = new MemoryStream(data);
@@ -73,7 +73,7 @@ namespace FirmwareKit.Sparse.IntegrationTests
             // async write
             outMs.SetLength(0);
             outMs.Position = 0;
-            provider.WriteToAsync(outMs).GetAwaiter().GetResult();
+            await provider.WriteToAsync(outMs);
             Assert.Equal(data.Skip(10).Take(50).ToArray(), outMs.ToArray());
         }
 

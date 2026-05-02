@@ -99,20 +99,15 @@ public class SparseStreamParser : IDisposable
 
             var chunkHeader = ChunkHeader.FromBytes(headerBuffer);
 
-            if ((chunkHeader.ChunkType & 0x8000) != 0)
-            {
-                _stream.Seek(4, SeekOrigin.Current);
-            }
-
             var chunk = new SparseChunk(chunkHeader);
 
             switch ((ChunkType)chunkHeader.ChunkType)
             {
                 case ChunkType.Raw:
                     long dataSize = chunkHeader.TotalSize - _header.ChunkHeaderSize;
-                    var dataBuffer = new byte[dataSize];
-                    _stream.ReadExactly(dataBuffer, 0, (int)dataSize);
-                    chunk.DataProvider = new MemoryDataProvider(dataBuffer, 0, (int)dataSize);
+                    long dataOffset = _stream.Position;
+                    chunk.DataProvider = new StreamDataProvider(_stream, dataOffset, dataSize, leaveOpen: true);
+                    _stream.Seek(dataSize, SeekOrigin.Current);
                     break;
 
                 case ChunkType.Fill:

@@ -134,21 +134,28 @@ public static partial class SparseImageUtils
             return 0;
         }
 
-        var buffer = new byte[1024 * 1024];
-        long totalRead = 0;
-        while (totalRead < length)
+        var buffer = System.Buffers.ArrayPool<byte>.Shared.Rent(1024 * 1024);
+        try
         {
-            var toRead = (int)Math.Min(buffer.Length, length - totalRead);
-            var read = chunk.DataProvider.Read(startOffsetInChunk + totalRead, buffer, 0, toRead);
-            if (read <= 0)
+            long totalRead = 0;
+            while (totalRead < length)
             {
-                break;
-            }
+                var toRead = (int)Math.Min(buffer.Length, length - totalRead);
+                var read = chunk.DataProvider.Read(startOffsetInChunk + totalRead, buffer, 0, toRead);
+                if (read <= 0)
+                {
+                    break;
+                }
 
-            outputStream.Write(buffer, 0, read);
-            totalRead += read;
+                outputStream.Write(buffer, 0, read);
+                totalRead += read;
+            }
+            return totalRead;
         }
-        return totalRead;
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     /// <summary>

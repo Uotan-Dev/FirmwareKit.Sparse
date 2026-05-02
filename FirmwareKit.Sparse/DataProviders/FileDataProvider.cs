@@ -88,13 +88,13 @@ public class FileDataProvider : ISparseDataProvider
             while (remaining > 0)
             {
                 var toRead = (int)Math.Min(buffer.Length, remaining);
-                var read = await fs.ReadAsync(buffer, 0, toRead, cancellationToken);
+                var read = await fs.ReadAsync(buffer, 0, toRead, cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
                     break;
                 }
 
-                await stream.WriteAsync(buffer, 0, read, cancellationToken);
+                await stream.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
                 remaining -= read;
             }
         }

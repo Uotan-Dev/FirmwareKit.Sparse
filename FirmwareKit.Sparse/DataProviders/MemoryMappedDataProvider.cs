@@ -106,7 +106,7 @@ public class MemoryMappedDataProvider : ISparseDataProvider, IDisposable
             {
                 int toRead = (int)Math.Min(buffer.Length, remaining);
                 _accessor.ReadArray(pos, buffer, 0, toRead);
-                await stream.WriteAsync(buffer, 0, toRead, cancellationToken);
+                await stream.WriteAsync(buffer, 0, toRead, cancellationToken).ConfigureAwait(false);
                 pos += toRead;
                 remaining -= toRead;
             }

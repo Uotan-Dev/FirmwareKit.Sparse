@@ -33,11 +33,11 @@ public static class SparseImageConverter
 
         foreach (var inputFile in inputFiles)
         {
-            using SparseFile sparseFile = await SparseFile.FromImageFileAsync(inputFile, true, false, null, cancellationToken);
-            await sparseFile.WriteRawToStreamAsync(outputStream, true, cancellationToken);
+            using SparseFile sparseFile = await SparseFile.FromImageFileAsync(inputFile, true, false, null, cancellationToken).ConfigureAwait(false);
+            await sparseFile.WriteRawToStreamAsync(outputStream, true, cancellationToken).ConfigureAwait(false);
         }
 
-        await outputStream.FlushAsync(cancellationToken);
+        await outputStream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -52,8 +52,8 @@ public static class SparseImageConverter
     public static async Task ConvertRawToSparseAsync(string inputFile, string outputFile, uint blockSize = 4096, CancellationToken cancellationToken = default)
     {
         using var outputStream = new FileStream(outputFile, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.SequentialScan);
-        using SparseFile sparseFile = await SparseReader.FromRawFileAsync(inputFile, blockSize, false, null, cancellationToken);
-        await sparseFile.WriteToStreamAsync(outputStream, true, false, false, cancellationToken);
+        using SparseFile sparseFile = await SparseReader.FromRawFileAsync(inputFile, blockSize, false, null, cancellationToken).ConfigureAwait(false);
+        await sparseFile.WriteToStreamAsync(outputStream, true, false, false, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>

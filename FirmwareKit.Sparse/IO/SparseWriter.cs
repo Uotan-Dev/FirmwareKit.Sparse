@@ -32,7 +32,7 @@ public static partial class SparseWriter
     {
         if (!sparse)
         {
-            await WriteRawToStreamAsync(sparseFile, stream, false, cancellationToken);
+            await WriteRawToStreamAsync(sparseFile, stream, false, cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -87,12 +87,12 @@ public static partial class SparseWriter
 
             var headerDataArr = new byte[SparseFormat.SparseHeaderSize];
             outHeader.WriteTo(headerDataArr);
-            await targetStream.WriteAsync(headerDataArr, 0, headerDataArr.Length, cancellationToken);
+            await targetStream.WriteAsync(headerDataArr, 0, headerDataArr.Length, cancellationToken).ConfigureAwait(false);
             if (outHeader.FileHeaderSize > SparseFormat.SparseHeaderSize)
             {
                 var pad = outHeader.FileHeaderSize - SparseFormat.SparseHeaderSize;
                 var padBuf = new byte[pad];
-                await targetStream.WriteAsync(padBuf, 0, padBuf.Length, cancellationToken);
+                await targetStream.WriteAsync(padBuf, 0, padBuf.Length, cancellationToken).ConfigureAwait(false);
             }
 
             var checksum = Crc32.Begin();
@@ -116,14 +116,14 @@ public static partial class SparseWriter
                     }
 
                     headerToWrite.WriteTo(headerBuf);
-                    await targetStream.WriteAsync(headerBuf, 0, headerLen, cancellationToken);
+                    await targetStream.WriteAsync(headerBuf, 0, headerLen, cancellationToken).ConfigureAwait(false);
 
                     switch (chunk.Header.ChunkType)
                     {
                         case (ushort)ChunkType.Raw:
                             if (chunk.DataProvider != null)
                             {
-                                await chunk.DataProvider.WriteToAsync(targetStream, cancellationToken);
+                                await chunk.DataProvider.WriteToAsync(targetStream, cancellationToken).ConfigureAwait(false);
 
                                 if (includeCrc)
                                 {
@@ -146,7 +146,7 @@ public static partial class SparseWriter
                                     while (padding > 0)
                                     {
                                         var toWrite = (int)Math.Min(buffer.Length, padding);
-                                        await targetStream.WriteAsync(buffer, 0, toWrite, cancellationToken);
+                                        await targetStream.WriteAsync(buffer, 0, toWrite, cancellationToken).ConfigureAwait(false);
                                         if (includeCrc) checksum = Crc32.UpdateZero(checksum, toWrite);
                                         padding -= toWrite;
                                     }
@@ -159,7 +159,7 @@ public static partial class SparseWriter
                                 while (remaining > 0)
                                 {
                                     var toWrite = (int)Math.Min(buffer.Length, remaining);
-                                    await targetStream.WriteAsync(buffer, 0, toWrite, cancellationToken);
+                                    await targetStream.WriteAsync(buffer, 0, toWrite, cancellationToken).ConfigureAwait(false);
                                     if (includeCrc) checksum = Crc32.UpdateZero(checksum, toWrite);
                                     remaining -= toWrite;
                                 }
@@ -168,7 +168,7 @@ public static partial class SparseWriter
 
                         case (ushort)ChunkType.Fill:
                             BinaryPrimitives.WriteUInt32LittleEndian(fillValData, chunk.FillValue);
-                            await targetStream.WriteAsync(fillValData, 0, fillValData.Length, cancellationToken);
+                            await targetStream.WriteAsync(fillValData, 0, fillValData.Length, cancellationToken).ConfigureAwait(false);
                             if (includeCrc) checksum = Crc32.UpdateRepeated(checksum, chunk.FillValue, expectedDataSize);
                             break;
 
@@ -188,7 +188,7 @@ public static partial class SparseWriter
                         TotalSize = (uint)outHeader.ChunkHeaderSize
                     };
                     skipChunkHeader.WriteTo(headerBuf);
-                    await targetStream.WriteAsync(headerBuf, 0, outHeader.ChunkHeaderSize, cancellationToken);
+                    await targetStream.WriteAsync(headerBuf, 0, outHeader.ChunkHeaderSize, cancellationToken).ConfigureAwait(false);
                     if (includeCrc) checksum = Crc32.UpdateZero(checksum, (long)skipBlocks * outHeader.BlockSize);
                 }
 
@@ -202,9 +202,9 @@ public static partial class SparseWriter
                         TotalSize = (uint)(outHeader.ChunkHeaderSize + 4)
                     };
                     crcChunkHeader.WriteTo(headerBuf);
-                    await targetStream.WriteAsync(headerBuf, 0, outHeader.ChunkHeaderSize, cancellationToken);
+                    await targetStream.WriteAsync(headerBuf, 0, outHeader.ChunkHeaderSize, cancellationToken).ConfigureAwait(false);
                     BinaryPrimitives.WriteUInt32LittleEndian(fillValData, finalChecksum);
-                    await targetStream.WriteAsync(fillValData, 0, 4, cancellationToken);
+                    await targetStream.WriteAsync(fillValData, 0, 4, cancellationToken).ConfigureAwait(false);
                 }
             }
             finally
@@ -213,14 +213,14 @@ public static partial class SparseWriter
                 ArrayPool<byte>.Shared.Return(headerBuf);
             }
 
-            if (gzip) await targetStream.FlushAsync(cancellationToken);
+            if (gzip) await targetStream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
         finally
         {
             if (gzip && targetStream != null)
             {
 #if NET6_0_OR_GREATER
-                await targetStream.DisposeAsync();
+                await targetStream.DisposeAsync().ConfigureAwait(false);
 #else
                 targetStream.Dispose();
 #endif

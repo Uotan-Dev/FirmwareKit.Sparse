@@ -90,13 +90,13 @@ public class StreamDataProvider : ISparseDataProvider
             while (remaining > 0)
             {
                 var toRead = (int)Math.Min(buffer.Length, remaining);
-                var read = await _stream.ReadAsync(buffer, 0, toRead, cancellationToken);
+                var read = await _stream.ReadAsync(buffer, 0, toRead, cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
                     break;
                 }
 
-                await outStream.WriteAsync(buffer, 0, read, cancellationToken);
+                await outStream.WriteAsync(buffer, 0, read, cancellationToken).ConfigureAwait(false);
                 remaining -= read;
             }
         }

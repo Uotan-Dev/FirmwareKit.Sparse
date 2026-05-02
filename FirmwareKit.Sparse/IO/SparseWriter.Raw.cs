@@ -52,7 +52,7 @@ public static partial class SparseWriter
                         currentBufferFillValue = null;
                         if (chunk.DataProvider != null)
                         {
-                            await chunk.DataProvider.WriteToAsync(stream, cancellationToken);
+                            await chunk.DataProvider.WriteToAsync(stream, cancellationToken).ConfigureAwait(false);
                             writtenBytes += size;
                             var remainingPadding = size - chunk.DataProvider.Length;
                             if (remainingPadding > 0)
@@ -61,7 +61,7 @@ public static partial class SparseWriter
                                 while (remainingPadding > 0)
                                 {
                                     var toWrite = (int)Math.Min(buffer.Length, remainingPadding);
-                                    await stream.WriteAsync(buffer, 0, toWrite, cancellationToken);
+                                    await stream.WriteAsync(buffer, 0, toWrite, cancellationToken).ConfigureAwait(false);
                                     remainingPadding -= toWrite;
                                 }
                             }
@@ -81,7 +81,7 @@ public static partial class SparseWriter
                                 while (remaining > 0)
                                 {
                                     var toWrite = (int)Math.Min(buffer.Length, remaining);
-                                    await stream.WriteAsync(buffer, 0, toWrite, cancellationToken);
+                                    await stream.WriteAsync(buffer, 0, toWrite, cancellationToken).ConfigureAwait(false);
                                     remaining -= toWrite;
                                 }
                             }
@@ -103,7 +103,7 @@ public static partial class SparseWriter
                         while (remainingFill > 0)
                         {
                             var toWrite = (int)Math.Min(buffer.Length, remainingFill);
-                            await stream.WriteAsync(buffer, 0, toWrite, cancellationToken);
+                            await stream.WriteAsync(buffer, 0, toWrite, cancellationToken).ConfigureAwait(false);
                             remainingFill -= toWrite;
                         }
                         writtenBytes += size;
@@ -124,7 +124,7 @@ public static partial class SparseWriter
                             while (remainingSkip > 0)
                             {
                                 var toWrite = (int)Math.Min(buffer.Length, remainingSkip);
-                                await stream.WriteAsync(buffer, 0, toWrite, cancellationToken);
+                                await stream.WriteAsync(buffer, 0, toWrite, cancellationToken).ConfigureAwait(false);
                                 remainingSkip -= toWrite;
                             }
                         }
@@ -144,7 +144,7 @@ public static partial class SparseWriter
                 while (trailingZeros > 0)
                 {
                     var toWrite = (int)Math.Min(buffer.Length, trailingZeros);
-                    await stream.WriteAsync(buffer, 0, toWrite, cancellationToken);
+                    await stream.WriteAsync(buffer, 0, toWrite, cancellationToken).ConfigureAwait(false);
                     trailingZeros -= toWrite;
                 }
             }

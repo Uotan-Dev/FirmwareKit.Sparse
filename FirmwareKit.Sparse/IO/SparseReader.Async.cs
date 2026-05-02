@@ -41,7 +41,7 @@ public static partial class SparseReader
     public static async Task<SparseFile> FromBufferAsync(byte[] buffer, bool validateCrc = false, bool verbose = false, ISparseLogger? logger = null, CancellationToken cancellationToken = default)
     {
         using var ms = new MemoryStream(buffer);
-        return await FromStreamAsync(ms, validateCrc, verbose, logger, cancellationToken);
+        return await FromStreamAsync(ms, validateCrc, verbose, logger, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -61,7 +61,7 @@ public static partial class SparseReader
 #else
         using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
 #endif
-        return await FromStreamInternalAsync(stream, filePath, validateCrc, verbose, logger, cancellationToken);
+        return await FromStreamInternalAsync(stream, filePath, validateCrc, verbose, logger, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -81,7 +81,7 @@ public static partial class SparseReader
         ISparseLogger activeLogger = logger ?? SparseLogger.Instance;
 
         var headerData = new byte[SparseFormat.SparseHeaderSize];
-        await ReadExactlyAsync(stream, headerData, 0, SparseFormat.SparseHeaderSize, cancellationToken);
+        await ReadExactlyAsync(stream, headerData, 0, SparseFormat.SparseHeaderSize, cancellationToken).ConfigureAwait(false);
 
         sparseFile.Header = SparseHeader.FromBytes(headerData);
 
@@ -116,7 +116,7 @@ public static partial class SparseReader
             var buffer4 = new byte[4];
             for (uint i = 0; i < sparseFile.Header.TotalChunks; i++)
             {
-                await ReadExactlyAsync(stream, chunkHeaderData, 0, SparseFormat.ChunkHeaderSize, cancellationToken);
+                await ReadExactlyAsync(stream, chunkHeaderData, 0, SparseFormat.ChunkHeaderSize, cancellationToken).ConfigureAwait(false);
 
                 var chunkHeader = ChunkHeader.FromBytes(chunkHeaderData);
 
@@ -167,7 +167,7 @@ public static partial class SparseReader
                                 while (remaining > 0)
                                 {
                                     var toRead = (int)Math.Min(buffer.Length, remaining);
-                                    await ReadExactlyAsync(stream, buffer, 0, toRead, cancellationToken);
+                                    await ReadExactlyAsync(stream, buffer, 0, toRead, cancellationToken).ConfigureAwait(false);
                                     checksum = Crc32.Update(checksum.Value, buffer.AsSpan(0, toRead));
                                     remaining -= toRead;
                                 }
@@ -186,7 +186,7 @@ public static partial class SparseReader
                                 throw new NotSupportedException($"Raw data for chunk {i} is too large ({dataSize} bytes), exceeding memory buffer limits.");
                             }
                             var rawData = new byte[dataSize];
-                            await ReadExactlyAsync(stream, rawData, 0, (int)dataSize, cancellationToken);
+                            await ReadExactlyAsync(stream, rawData, 0, (int)dataSize, cancellationToken).ConfigureAwait(false);
                             if (validateCrc && checksum.HasValue)
                             {
                                 checksum = Crc32.Update(checksum.Value, rawData);
@@ -201,7 +201,7 @@ public static partial class SparseReader
                             throw new InvalidDataException($"Data size ({dataSize}) for FILL chunk {i} must be 4");
                         }
 
-                        await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken);
+                        await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken).ConfigureAwait(false);
                         chunk.FillValue = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
 
                         if (validateCrc && checksum.HasValue)
@@ -226,7 +226,7 @@ public static partial class SparseReader
                         {
                             throw new InvalidDataException($"Data size ({dataSize}) for CRC32 chunk {i} must be 4");
                         }
-                        await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken);
+                        await ReadExactlyAsync(stream, buffer4, 0, 4, cancellationToken).ConfigureAwait(false);
                         var fileCrc = BinaryPrimitives.ReadUInt32LittleEndian(buffer4);
                         if (validateCrc && checksum.HasValue && fileCrc != Crc32.Finish(checksum.Value))
                         {
@@ -421,7 +421,7 @@ public static partial class SparseReader
         int totalRead = 0;
         while (totalRead < count)
         {
-            int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, cancellationToken);
+            int read = await stream.ReadAsync(buffer, offset + totalRead, count - totalRead, cancellationToken).ConfigureAwait(false);
             if (read == 0)
                 throw new EndOfStreamException();
             totalRead += read;
