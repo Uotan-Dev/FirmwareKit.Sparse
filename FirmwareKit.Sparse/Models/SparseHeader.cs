@@ -61,6 +61,29 @@ public readonly struct SparseHeader
     public uint ImageChecksum { get; init; }
 
     /// <summary>
+    /// Creates a default <see cref="SparseHeader"/> with standard magic, version, and header sizes.
+    /// <para>使用标准魔术数字、版本号和头部大小创建默认的 SparseHeader。</para>
+    /// </summary>
+    /// <param name="blockSize">Block size in bytes. <para>块的字节大小。</para></param>
+    /// <param name="totalBlocks">Total number of blocks in the image. <para>镜像中的总块数。</para></param>
+    /// <returns>A new <see cref="SparseHeader"/> with default values. <para>具有默认值的新 SparseHeader。</para></returns>
+    public static SparseHeader CreateDefault(uint blockSize, uint totalBlocks)
+    {
+        return new SparseHeader
+        {
+            Magic = SparseFormat.SparseHeaderMagic,
+            MajorVersion = 1,
+            MinorVersion = 0,
+            FileHeaderSize = SparseFormat.SparseHeaderSize,
+            ChunkHeaderSize = SparseFormat.ChunkHeaderSize,
+            BlockSize = blockSize,
+            TotalBlocks = totalBlocks,
+            TotalChunks = 0,
+            ImageChecksum = 0
+        };
+    }
+
+    /// <summary>
     /// Parses a <see cref="SparseHeader"/> from a little-endian byte sequence.
     /// <para>从小端字节序列解析 SparseHeader。</para>
     /// </summary>

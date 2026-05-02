@@ -111,13 +111,13 @@ public class SparseStreamParser : IDisposable
                 case ChunkType.Raw:
                     long dataSize = chunkHeader.TotalSize - _header.ChunkHeaderSize;
                     var dataBuffer = new byte[dataSize];
-                    ReadExactly(_stream, dataBuffer, 0, (int)dataSize);
+                    _stream.ReadExactly(dataBuffer, 0, (int)dataSize);
                     chunk.DataProvider = new MemoryDataProvider(dataBuffer, 0, (int)dataSize);
                     break;
 
                 case ChunkType.Fill:
                     Span<byte> fillBuffer = stackalloc byte[4];
-                    ReadExactly(_stream, fillBuffer);
+                    _stream.ReadExactly(fillBuffer);
                     chunk.FillValue = BinaryPrimitives.ReadUInt32LittleEndian(fillBuffer);
                     break;
 
@@ -148,27 +148,4 @@ public class SparseStreamParser : IDisposable
         }
     }
 
-    private static void ReadExactly(Stream stream, byte[] buffer, int offset, int count)
-    {
-        int totalRead = 0;
-        while (totalRead < count)
-        {
-            int read = stream.Read(buffer, offset + totalRead, count - totalRead);
-            if (read == 0)
-                throw new EndOfStreamException();
-            totalRead += read;
-        }
-    }
-
-    private static void ReadExactly(Stream stream, Span<byte> buffer)
-    {
-        int totalRead = 0;
-        while (totalRead < buffer.Length)
-        {
-            int read = stream.Read(buffer.Slice(totalRead));
-            if (read == 0)
-                throw new EndOfStreamException();
-            totalRead += read;
-        }
-    }
 }

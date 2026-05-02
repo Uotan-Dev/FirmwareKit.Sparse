@@ -1,7 +1,7 @@
 using FirmwareKit.Sparse.Core;
 using Xunit;
 
-namespace FirmwareKit.Sparse.IntegrationTests;
+namespace FirmwareKit.Sparse.Tests;
 
 public class ResparseSplitFilesTests
 {
